@@ -1,0 +1,93 @@
+I. Global Line Radiosity
+First, there are a few different names in use for more or less the same thing:
+
+Global Line Radiosity (this is the name used in the book: Advanced Global Illumination, 2nd edition)
+Stochastic Radiosity (this covers actually a bit more, but somehow fits here too)
+Global Line (Quasi) Monte Carlo Radiosity
+Global Raybundle Tracing
+Light Field Propagation, Intersection Field, etc…
+
+The classic Radiosity Algorithm in (very) short is:
+
+Divide the scene into small patches, compute the formfactors between all pairs of patches, and solve a big matrix.
+
+The Formfactors can simply be seen as probabilities that when emitting a ray from patch A, it intersects patch B (or as the the fraction of energy that B receives from A). So when emitting a number of rays uniformly over the hemisphere of A, the probability that rays hit B is the formfactor. Same, but not as accurate, when you rasterize the scene at A and count all rastered B-pixels, you get the formfactor.
+
+In Global Line Radiosity rays are shot uniformly over the scene’s boundingsphere and the intersections along that ray are used to propagate energy.
+
+The cool thing here is, that these global lines, and intersections along them, can be simply created by using the hardware rasterizer and order-independent-transparency (OIT). A few years ago this was done by using the A- or K-Buffer or depth-peeling. But more recent OpenGL-versions make it possible to use other techniques as Per-Pixel-Linked-Lists (PPLL) or Dynamic-Fragment-Buffer (DFB). There is a nice chapter about OIT in “OpenGL Insights” (chapter 20) and even better, the source from Pyarelal Knowles at gibhub. His work was very helpful for me to get started with OIT.
+
+The reason i could use the hardware-rasterizer to compute GI was the main reason i was going for radiosity this time. Back when i coded my pathtracer i needed to build a spatial datastructure (BVH and Octree) to speed up Ray-Scene-Intersections. The time to create the BVH (using SAH) took a few seconds, depending on the scene, on my old computer which is now about 7 years old. I guess there are smart solutions to speed up the BVH-creation time, but you also have to care for updating the structure in case the scene changes, and so on.
+
+Another point for radiosity was, that GI gets computed for the whole scene at once (Objectspace), and not only for the current view-direction (Screenspace). But this point is also the biggest fault of radiosity, view-dependent effects have to be added separately and more complex materials (than perfect diffuse ones) are not for free either.
+
+As shown in the video at the end of the post, the renderer starts immediately after the scene is loaded. While the displayrenderer is just responsible for displaying the radiosity, the GI-renderer works in the background and can be turned off after a few seconds.
+
+Other Radiosity features:
+
+no shadow-rays are needed
+lights can be of any shape – any face can emit light.
+the number of light source doesn’t affect performance.
+Raytracing based renderers usually slow down when the number of lights inreases. There are solutions for this, like creating separate data-structures of lights (light clusters), e.g. Light-Cuts.
+etc …
+There are a few papers (i only found very little in books about it) out there, that cover Global Line Radiosity in its different variations and were a source of inspiration for me:
+
+Approximate Radiosity Using Stochastic Depth Buffering
+Global Illumination using Parallel Global Ray-Bundles
+Light Field Propagation and Rendering on the GPU
+Fast Global Illumination Baking via Ray-Bundles
+… and a few more
+
+II. 2D Implementation
+
+This post is about a new algorithm I have been working on to compute Global Illumination in realtime for 2D scenes.
+
+The Algorithm is based on the idea of Global Line Radiosity.
+
+The Radiosity Renderer computes a full Global Illumination Solution each frame and therefore is not limited by any number of dynamic elements in a scene. Since it is based on Radiosity, the number of lights or the shape of lights is also not a limiting factor. A light is treated completely the same as any solid material.
+
+area lights +ambient light + SSS lightning
+
+A. Algorithm
+At each pixel, rays are cast into the scene and the (nearest) intersections are used to propagate direct/indirect illumination. So far, this is common to pathtracing and in fact it is very similar. However, raycasting is expensive and often needs acceleration structures (space partitioning like BVH, Octree, BSP, KdTree, …) to perform well. Acceleration structures themself need to be built and updated for dynamic elements in the scene, which also comes at a cost.
+
+B. Global Line Radiosity
+The idea of Global Line Radiosity in 3D is, to compute these Ray-Scene intersections in parallel for the whole scene (global lines) using the rasterizer. The scene is rendered (orthograhic projection) from different directions into a deep framebuffer that stores every single rasterized fragment, not just those that pass the fragment test (DEPTH_TEST), a technique that is also used for OIT (Order Independent Transparency). At each pixel/fragment, the list of frags (sorted by depth) is then used to propagate direct/indirect light. There is lots of room for variations and optimisations in this pipeline, and its a really neat alternative to conventional Raytracing.
+
+For 2D-Scenes I am basically using the same algorithm except that rasterization into a deep framebuffer is not even necessary (and also not possible as in 3D).
+
+C. Secondary Bounces
+As mentioned above, Indirect Lightning needs much less samples to propagate than direct light. The Following 2D Cornell Box example demonstrates the propagation of indirect light. The more passes the more “chaotic” paths are built and the final path-length cant really be determined.
+
+D. Ambient Occlusion (AO)
+The Ambient Occlusion term comes for free as a side-product and can be used to simulate a SkyDome. The AO-term is basically the 2D-Isovist at each pixel which can be stored in an additional rendertarget or simply added to the direct-light contribution. 2D-Isovists are also quite interesting for Space Syntax, e.g. for Architectural Plans. I am going to cover that in a following posting. Ambient Occlusion is used for direct light only.
+
+E. Sub-surface Scattering (SSS)
+In my implementation, the amount/strength of SSS is simulated by the depth that Rays can enter solid materials . Optionally the values get blured to smooth the resulting irradiance a bit. A threshold is applied for creating a mask of solid obstacles, … thin enough, so SSS makes them appear to be translucent to some degree.
+
+III. Application
+
+A. Development Enviroment
+For developing I am using Processing (Java) as the main Application framework, ControlP5 for GUI-Elements and my PixelFlow-Library for the main OpenGL/GLSL stuff.
+
+The Radiosity Solution is computed completely on the GPU using OpenGL ES 3, so there would be no real performance gain in using a C/C++ framework over Processing/Java. Probably even a WebGL2 implementation would perform similar.
+
+For comfortable debugging and testing of the algorithm i created a small app with a simple UI. The UI controls are basically for setting lightning intensity and enabling/disabling features, as well as some simple draw utils (brushes, lines, forms etc…). Under the UI is a magnifier for inspecting pixels and edges closer.
+
+On the bottom are 3 HSL colorpickers for solid materials (left), light materials (middle) and global ambient light (right). Materials are at the moment generically defined as rgb colors using the alpha channel for light-intensity.
+
+B. Performance/Quality
+The rendered Radiosity-Result (HDR) is equivalent to a Pathtracer, but comes noisefree and with (kind of) infinite trace depth.
+
+Since the algorithm somehow is a PathTracing/Radiosity mix, a solid measure to evaluate performance turned out to be RayCasts per Second.
+
+On my graphics-card, a GeForce GTX 960, the renderer runs at about 2.0 – 2.5 billion raycasts per second … far more then what is possible with RayTracing, even on GPUs.
+
+In Numbers: for a framesize of 1000 x 1000 pixels and 512 samples (ray-scene intersections) per pixel it would perform at around 5 frames per second.
+
+(1000px * 1000px) * 512 samples/px * 5 frames/second = 2.56G samples/second
+512 samples are mostly required to get a noisefree rendering since I dont sample direct light directly. For indirect light only, around 128 samples would be enough for most scenes. (There is lots of room for improvement for propagating direct light).
+
+However, at the moment a good and simple solution to speedup the process is to run the Radiosity-Solver just at a lower resolution, … i get around 30fps then (see the videos).
+ 
+
