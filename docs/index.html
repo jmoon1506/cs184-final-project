@@ -137,9 +137,15 @@
 			</li>
 			<br/><br/>
 		</ul>
-		<li>TODO: Problem Description</li>
+		<li>Problem Description</li>
 		<ul>
-			<li>Here you should provide the context for your idea. Describe the problem that you are trying to solve, why it is important, where it is challenging. Give us a general idea on how you are going to solve it.</li>
+			<li>Our idea is to run 2D real-time ray tracing with global illumination. Ray tracing is a powerful method, and it is important because it generates realistic scenes. For 3D space, the main challenge is running it in real-time because it is too costly. There are several components to us solving this issue of higher cost:
+			<ul>
+				<li>Run the renderer in 2D space instead of 3D space to decrease complexity.</li>
+				<li>Use efficient strategies like Parallel Ray-bundling.</li>
+				<li>Run our renderer on the GPU, likely using OpenCL (TODO: Joseph are we set on OpenCL or should we mention using WebGL etc.).</li>
+				<li>When objects or light in the scene move, there is a chance we might need to slightly decrease the smoothness and increase the noise for a little bit until we are able to achieve higher quality. We, of course, want to avoid this as much as we can, but if it comes down to it, we might need to.</li>
+			</ul>
 		</ul>
 		<li>TODO: Goals and Deliverables</li>
 		<ul>
