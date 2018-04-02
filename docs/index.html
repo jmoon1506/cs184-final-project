@@ -14,6 +14,10 @@
   h1, h2, h3, h4 {
     font-family: 'Source Sans Pro', sans-serif;
   }
+  #container {
+    width: 100%;
+    height: 500px;
+  }
 </style>
 <title>CS 184 Mesh Editor</title>
 <meta http-equiv="content-type" content="text/html; charset=utf-8" />
@@ -26,6 +30,9 @@
 <h1 align="middle">Real-time 2D Global Illumination</h1>
 <h2 align="middle">Joseph Moon, Abdul AlZanki, Lawrence Elkins</h2>
 <br/><br/>
+
+
+
 <div>
 <h2 align="middle">Overview</h2>
 <p>For this project, we hope to implement 2D global illumination. Our most ambitious goal is to use Global Line Radiosity, which has been shown to render realistic scenes in real-time. Failing that, we could implement a Monte Carlo pathtracer similar to the one in Assignment 3 - with the added ability to see samples added in real-time.</p>
@@ -119,6 +126,12 @@
   </table>
 </div>
 
+<h3>Current Work-in-progress</h3>
+<div id="container"></div>
+<script src="../src/three.min.js"></script>
+<script src="../src/stats.min.js"></script>
+<script src="../src/main.js"></script>
+
 <!-- TODO:
 I. 2D simplifications
   a. Only need to sample pixels on the 2D plane
@@ -146,6 +159,8 @@ IV. Add related works
   > 2D Global Line Radiosity (currently down): http://thomasdiewald.com/blog/?p=2949
   > Papers (see references directory)
 -->
+
+
 
 </body>
 </html>
