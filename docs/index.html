@@ -34,133 +34,176 @@
 
 
 <div>
-<h2 align="middle">Overview</h2>
-<p>For this project, we hope to implement 2D global illumination. Our most ambitious goal is to use Global Line Radiosity, which has been shown to render realistic scenes in real-time. Failing that, we could implement a Monte Carlo pathtracer similar to the one in Assignment 3 - with the added ability to see samples added in real-time.</p>
 
+<div align="left">
+  <div align="middle">
+  <h2>Summary and Team Members</h2>
+  </div>
+		<p>For this project, we hope to implement an interactive 2D raytracer. We will start out by implementing a Monte Carlo raytracer similar to the one in Assignment 3 - with the ability to run in real-time. However, it would run at low-fidelity during scene changes. Our more ambitious goal is to create a parallel raytracer, which would hopefully run fast enough to render high-fidelity dynamic scenes.
+			<br/><br/>
+			Joseph Moon: 3033156362
+			<br/><br/>
+			Abdulrahman AlZenki: 25740621
+			<br/><br/>
+			Lawrence Elkins: 23452545
+			<br/><br/>
+		</p>
+
+    <div align="middle">
+      <h2>Problem Description</h2>
+    </div>
+
+		<p>Raytracing is a powerful method to generate realistic lighting effects, such as global illumination and soft shadows. It works by shooting rays into each screen pixel from the camera and approximating a solution to the rendering equation along each ray's intersections with the scene. Raytracing in real-time is an ongoing area of research, due to the algorithm's steep computational cost. We plan to mitigate this cost in several ways:</p>
+		<ul>
+			<li>Run the renderer in 2D space instead of 3D space to decrease complexity.</li>
+			<li>When the camera or scene changes, we need to re-render the entire scene. To maintain real-time performance, we might render frames with just a few samples and gradually add new ones if the scene and camera stay still (i.e. lo-fi dynamic scenes).</li>
+			<li>More ambitiously, we want to run raytracing on the GPU with a parallel ray-bundling algorithm to create hi-fi dynamic scenes.</li>
+		</ul>
+
+		<br/>
+
+    <h4>Parallel Raytracing</h4>
+
+    <p>Also known as parallel ray-bundling or global line radiosity, this algorithm enables parallelization of raycasting on the GPU. Instead of raytracing over each pixel sequentially, we sample every pixel with parallel rays in some random direction. We gather every fragment along each ray and propagate light along those in direct line-of-sight. Sampling many times, with many random angles, yields the equivalent result to traditional raytracing (Hachisuka 2005). By essentially rasterizing the scene at different angles, we can take advantage of the GPU to run billions of raytraces per second.</p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/parallel_ray_bundling.png" align="middle" width="300px"/>
+            <figcaption align="middle">Instead of raycasting randomly from different positions, we use bundles of parallel rays.</figcaption>
+          </td>
+          <td>
+            <img src="images/parallel_ray_bundling2.png" align="middle" width="300px"/>
+            <figcaption align="middle">Radiance is passed between intersection points.</figcaption>
+          </td>
+          <td>
+            <img src="images/parallel_ray_bounce.png" align="middle" width="300px"/>
+            <figcaption align="middle">Similar to traditional raytracing, we can calculate bounces recursively.</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h4>Examples of parallel ray-bundling</h4>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/global_line_radiosity1.png" align="middle" width="300px"/>
+            <figcaption align="middle"><font size="2">Still from video of real-time implementation.</font></figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <br/><br/>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/global_line_radiosity_direct.png" align="middle" width="300px"/>
+            <figcaption align="middle"><font size="2">Only direct lighting</font></figcaption>
+          </td>
+          <td>
+            <img src="images/global_line_radiosity_combined.png" align="middle" width="300px"/>
+            <figcaption align="middle"><font size="2">Add indirect lighting</font></figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <br/><br/>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/global_line_radiosity_sss.png" align="middle" width="400px"/>
+            <figcaption align="middle"><font size="2">With sub-surface scattering</font></figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div align="middle">
+      <h2>Goals and Deliverables</h2>
+    </div>
+    <p>We plan to measure performance by the number of raycasts (i.e. samples) per second. This is simply (frames per second * pixels per frame * raycasts per pixel). Time permitting, we will compare raycasting with and without parallelization. We also hope to create a clean and intuitive web interface to run each algorithm. Our final deliverable will be a webpage containing an embedded three.js application that can:</p>
+		<ul>
+			<li>Render simple 2D scenes in real-time (limited number of lights and objects with diffuse surfaces).</li>
+			<li>Animate and have the ability to interact, to show that our renderer is in real-time.</li>
+      <li>Implement the rendering equations from class in 2D. If we can't make it work, then we will just deposit light along rays and adjust gamma (like in <a href="https://benedikt-bitterli.me/tantalum/tantalum.html">this resource</a>).</li>
+      <br/>
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/pathtracer_low_samples.png" align="middle" width="300px"/>
+              <figcaption align="middle"><font size="2">How line-deposition looks when changing the scene</font></figcaption>
+            </td>
+            <td>
+              <img src="images/pathtracer_high_samples.png" align="middle" width="300px"/>
+              <figcaption align="middle"><font size="2">After staying still for several seconds</font></figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <br/>
+			<li>Add additional samples to a frame if the scene hasn't changed. This means that the quality of the real-time render might start out a bit noisy when things are first moved.</li>
+      <li>Hopefully use the parallel ray-bundling algorithm to achieve high sample count in real-time. If not, then implement specular surfaces, caustics, and other lighting effects in 2D.</li>
+    </ul>
+
+		<br/><br/>
+
+    <div align="middle">
+      <h2>Schedule</h2>
+    </div>
+    <p>Week 1 (April 2 - 8):</p>
+      <ul>
+        <li>Set up framework to work on project.</li>
+        <li>Begin attempt to implement parallel ray-bundling.</li>
+      </ul>  
+    <p>Week 2 (April 9 - 15):</p>
+      <ul>
+        <li>If parallel ray-bundling is feasible, try to finish static implementation and begin working on animating simple scenes.  Also investigate 
+        methods of speeding up the algorithms and making the renders more impressive with details like simple particle effects.</li>
+        <li>Otherwise, begin working on real-time Monte Carlo raytracer and investigate methods of speeding up the algorithm or approximating parts of it (to deal with the inevitable noise that will be produced).</li>
+      </ul>
+    <p>Week 3 (April 16 - 22):</p>
+      <ul>
+        <li>Finalize (hopefully) both implementations of real-time 2D global illumination so that speed and image quality can be compared between
+        the two methods.</li>
+        <li>Write milestone report and slides.  Also create milestone video that will include several simple scenes to display the methods in action.</li>
+      </ul>
+    <p>Week 4 (April 23 - 29):</p>
+      <ul>
+        <li>Polish the project, adding in any final speed-ups or details that can enhance image quality.</li>
+        <li>Work on presentation slides and script.  Brainstorm ideas to extend the project or potential issues that would arise in certain configurations</li>
+        <li>Develop several slightly more complicated scenes that can display the power (and possibly the limitations) of our implementation.</li>
+        <li>Begin work on final report, to be finalized early in the following week.</li>
+      </ul>
+
+    <br/><br/>
+
+    <div align="middle">
+      <h2>Resources</h2>
+    </div>
+		<ul>
+      <li>J. Hermes, N. Henrich, T. Grosch, and S. Mueller, "Global Illumination using Parallel Global Ray-Bundles," <i>Vision, Modeling, and Visualization</i>, 2010.</li>
+      <li>J. Mortensen, P. Khanna, and M. Slater, "Light Field Propagation and Rendering on the GPU," The Association for Computing Machinery, 2007.</li>
+      <li>T. Hachisuka, "High-Quality Global Illumination Rendering Using Rasterization," in <i>GPU Gems 2</i>, Matt Pharr, Ed., 2005.</li>
+      <li>Y. Tokuyoshi, T. Sekine, and S. Ogaki, "Fast Global Illumination Baking via Ray-Bundles," THe Association for Computing Machinery, 2011.</li>
+      <li>A. Thomsen and K. H. Nielsen, "Approximate Radiosity Using Stochastic Depth Buffering," Journal of Graphics, GPU, and Game Tools, 2011.</li>
+      <li>The blog of Thomas Diewald</li>
+      <li>The blog of Benedikt Bitterli</li>
+      <li>WebGL and the THREE.js library</li>
+      <li>Additional libraries for any potential accessory features like particle simulation libraries, etc.</li>
+		</ul>
+</div>
 <br/><br/>
-
-<div align="middle">
-  <table style="width=100%">
-    <tr>
-      <td>
-        <img src="images/pathtracer_low_samples.png" align="middle" width="300px"/>
-        <figcaption align="middle">How it looks when changing the scene</figcaption>
-      </td>
-      <td>
-        <img src="images/pathtracer_high_samples.png" align="middle" width="300px"/>
-        <figcaption align="middle">After staying still for several seconds</figcaption>
-      </td>
-    </tr>
-  </table>
-</div>
-
-<br/><br/>
-
-<div align="middle">
-  <table style="width=100%">
-    <tr>
-      <td>
-        <img src="images/global_line_radiosity1.png" align="middle" width="300px"/>
-        <figcaption align="middle">2D Global Line Radiosity</figcaption>
-      </td>
-    </tr>
-  </table>
-</div>
-
-
-
-<br/><br/>
-
-<div align="middle">
-<h3>Parallel Ray-bundling</h3>
-</div>
-<div align="middle">
-  <table style="width=100%">
-    <tr>
-      <td>
-        <img src="images/parallel_ray_bundling.png" align="middle" width="300px"/>
-        <figcaption align="middle">Instead of raycasting randomly from different positions, we use bundles of parallel rays. Both methods yield the same result (Hachisuka 2005).</figcaption>
-      </td>
-      <td>
-        <img src="images/parallel_ray_bundling2.png" align="middle" width="300px"/>
-        <figcaption align="middle">Radiance is passed between intersection points.</figcaption>
-      </td>
-      <td>
-        <img src="images/parallel_ray_bounce.png" align="middle" width="300px"/>
-        <figcaption align="middle">Similar to traditional pathtracing, we can calculate bounces recursively.</figcaption>
-      </td>
-    </tr>
-  </table>
-</div>
-
-<br/><br/>
-
-<div align="middle">
-<h3>Components of Global Line Radiosity</h3>
-</div>
-<div align="middle">
-  <table style="width=100%">
-    <tr>
-      <td>
-        <img src="images/global_line_radiosity_direct.png" align="middle" width="300px"/>
-        <figcaption align="middle">Only direct lighting</figcaption>
-      </td>
-      <td>
-        <img src="images/global_line_radiosity_combined.png" align="middle" width="300px"/>
-        <figcaption align="middle">Add indirect lighting</figcaption>
-      </td>
-    </tr>
-  </table>
-</div>
-
-<br/><br/>
-
-<div align="middle">
-  <table style="width=100%">
-    <tr>
-      <td>
-        <img src="images/global_line_radiosity_sss.png" align="middle" width="600px"/>
-        <figcaption align="middle">We can cheaply calculate lighting effects, such as sub-surface scattering</figcaption>
-      </td>
-    </tr>
-  </table>
-</div>
-
-<h3>Current Work-in-progress</h3>
+<h2>Current Work-in-progress</h2>
 <div id="container"></div>
 <script src="../src/three.min.js"></script>
 <script src="../src/stats.min.js"></script>
 <script src="../src/main.js"></script>
-
-<!-- TODO:
-I. 2D simplifications
-  a. Only need to sample pixels on the 2D plane
-  b. Only need to cast rays in 360 degrees, instead of an entire sphere
-I. Global Line Radiosity
-  1. Discuss parallel ray-bundling
-    a. Each sample calculates radiosity equation at every pixel, but with rays all in the same direction
-    b. Sampling many times, with many solid angles, yields the equivalent result to raytracing
-    c. Essentially rasterizes with each sample, making better use of GPU than raytracing
-  3. Other considerations
-    a. Possibly use raymarching and distance functions instead of primitives and intersection tests
-    b. Cheap soft shadows, sub-surface scattering, ambient occlusion
-II. Monte Carlo Pathtracer
-  1. 2D changes
-    a. Rays deposit light along their path
-  2. Downsides
-    a. Adjusting the camera or scene requires resampling the entire image
-    b. Runs on CPU, or inefficiently on GPU
-    c. Not truly real-time, impractical for actual applications
-    d. Line deposition not physically-based, doesn't looks realistic unless we have a ridiculous number of samples
-  3. Upsides
-    a. Easier to render caustics and specular surfaces
-IV. Add related works
-  > Monte Carlo pathtracer example: https://benedikt-bitterli.me/tantalum/tantalum.html
-  > 2D Global Line Radiosity (currently down): http://thomasdiewald.com/blog/?p=2949
-  > Papers (see references directory)
--->
-
-
 
 </body>
 </html>
