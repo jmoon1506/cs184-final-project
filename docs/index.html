@@ -85,48 +85,13 @@
       </table>
     </div>
 
-    <h4>Examples of parallel ray-bundling</h4>
-    <div align="middle">
-      <table style="width=100%">
-        <tr>
-          <td>
-            <img src="images/global_line_radiosity1.png" align="middle" width="300px"/>
-            <figcaption align="middle"><font size="2">Still from video of real-time implementation.</font></figcaption>
-          </td>
-        </tr>
-      </table>
-    </div>
-    <br/><br/>
-    <div align="middle">
-      <table style="width=100%">
-        <tr>
-          <td>
-            <img src="images/global_line_radiosity_direct.png" align="middle" width="300px"/>
-            <figcaption align="middle"><font size="2">Only direct lighting</font></figcaption>
-          </td>
-          <td>
-            <img src="images/global_line_radiosity_combined.png" align="middle" width="300px"/>
-            <figcaption align="middle"><font size="2">Add indirect lighting</font></figcaption>
-          </td>
-        </tr>
-      </table>
-    </div>
-    <br/><br/>
-    <div align="middle">
-      <table style="width=100%">
-        <tr>
-          <td>
-            <img src="images/global_line_radiosity_sss.png" align="middle" width="400px"/>
-            <figcaption align="middle"><font size="2">With sub-surface scattering</font></figcaption>
-          </td>
-        </tr>
-      </table>
-    </div>
+    
 
     <div align="middle">
       <h2>Goals and Deliverables</h2>
     </div>
-    <p>We plan to measure performance by the number of raycasts (i.e. samples) per second. This is simply (frames per second * pixels per frame * raycasts per pixel). Time permitting, we will compare raycasting with and without parallelization. We also hope to create a clean and intuitive web interface to run each algorithm. Our final deliverable will be a webpage containing an embedded three.js application that can:</p>
+    <p>We plan to measure performance by the number of raycasts (i.e. samples) per second. This is simply (frames per second * pixels per frame * raycasts per pixel). Time permitting, we will compare raycasting with and without parallelization. We also hope to create a clean and intuitive web interface to run each algorithm. Our final deliverable will be a webpage containing an embedded three.js application.</p>
+    <h4>Plan to deliver:</h4>
 		<ul>
 			<li>Render simple 2D scenes in real-time (limited number of lights and objects with diffuse surfaces).</li>
 			<li>Animate and have the ability to interact, to show that our renderer is in real-time.</li>
@@ -146,9 +111,50 @@
           </tr>
         </table>
       </div>
+      <li>In real-time, add additional samples to a frame if the scene hasn't changed. This means that the quality of the real-time render might start out a bit noisy when things are first moved.</li>
+    </ul>
+    <h4>Hope to deliver:</h4>
+    <ul>
+      <li>Use the parallel ray-bundling algorithm to achieve high sample count in real-time. If not, then implement specular surfaces, caustics, and other lighting effects in 2D.</li>
+
+      <li>Examples of parallel ray-bundling:</li>
       <br/>
-			<li>Add additional samples to a frame if the scene hasn't changed. This means that the quality of the real-time render might start out a bit noisy when things are first moved.</li>
-      <li>Hopefully use the parallel ray-bundling algorithm to achieve high sample count in real-time. If not, then implement specular surfaces, caustics, and other lighting effects in 2D.</li>
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/global_line_radiosity1.png" align="middle" width="300px"/>
+              <figcaption align="middle"><font size="2">Still from video of real-time implementation.</font></figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <br/><br/>
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/global_line_radiosity_direct.png" align="middle" width="300px"/>
+              <figcaption align="middle"><font size="2">Only direct lighting</font></figcaption>
+            </td>
+            <td>
+              <img src="images/global_line_radiosity_combined.png" align="middle" width="300px"/>
+              <figcaption align="middle"><font size="2">Add indirect lighting</font></figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <br/><br/>
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/global_line_radiosity_sss.png" align="middle" width="400px"/>
+              <figcaption align="middle"><font size="2">With sub-surface scattering</font></figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
     </ul>
 
 		<br/><br/>
