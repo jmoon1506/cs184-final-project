@@ -32,13 +32,13 @@
   <div align="middle">
     <h2>Title, Summary and Team Members</h2>
   </div>
-		<p>For this project, we hope to implement 2D global illumination. We will start out by implementing a Monte Carlo pathtracer similar to the one in Assignment 3 - with the added ability to see samples added in real-time. Our most ambitious goal is to use Global Line Radiosity, which has been shown to render realistic scenes in real-time.
+		<p>For this project, we hope to implement an interactive 2D raytracer. We will start out by implementing a Monte Carlo raytracer similar to the one in Assignment 3 - with the ability to run in real-time. However, it would run at low-fidelity during scene changes. Our more ambitious goal is to create a parallel raytracer, which would have the ability to render billions of samples per second on consumer hardware and enable high-fidelity dynamic scenes.
 			<br/><br/>
-			Joseph Moon: TODO(SID)
+			Joseph Moon: 3033156362
 			<br/><br/>
 			Abdulrahman AlZenki: 25740621
 			<br/><br/>
-			Lawrence Elkins: TODO(SID)
+			Lawrence Elkins: 23452545
 			<br/><br/>
 		</p>
 
@@ -46,11 +46,11 @@
       <h2>Problem Description</h2>
     </div>
 
-		<p>Our idea is to run 2D real-time global illumination. Ray tracing is a powerful method, and it is important because it generates realistic scenes. For 3D space, the main challenge is running it in real-time because it is too costly. There are several components to us solving this issue of high cost:</p>
+		<p>Raytracing is a powerful method to generate realistic lighting effects, such as global illumination and soft shadows. It works by shooting rays into each screen pixel from the camera and approximating a solution to the rendering equation along each ray's intersections with the scene. An ongoing focus of research is raytracing in real-time, due to the algorithm's steep computational cost. We plan to mitigate this in several ways:</p>
 		<ul>
 			<li>Run the renderer in 2D space instead of 3D space to decrease complexity.</li>
-			<li>When objects or light in the scene move, there is a chance we might need to slightly decrease the smoothness and increase the noise for a little bit until we are able to achieve higher quality. We, of course, want to avoid this as much as we can, but if it comes down to it, we might need to.</li>
-			<li>More ambitiously, we want to run Global Line Radiosity on the GPU, likely using OpenCL (TODO: Joseph are we set on OpenCL or should we mention using WebGL instead?). </li>
+			<li>When the camera or scene changes, we need to re-render the entire scene. To maintain real-time performance, we might render frames with just a few samples and gradually add new ones if the scene and camera stay still (i.e. lo-fi dynamic scenes).</li>
+			<li>More ambitiously, we want to run raytracing on the GPU with a parallel ray-bundling algorithm to create hi-fi dynamic scenes.</li>
 		</ul>
 
 		<br/><br/>
