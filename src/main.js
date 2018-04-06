@@ -2,8 +2,8 @@ var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
 var floor, floorMaterial;
-var sdfTest;
-var showStats = false;
+var sdfTest, sdfMaterial;
+var showStats = true;
 var nextObjectId = 0;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
@@ -15,49 +15,80 @@ var floorVertexShader =
 
 var floorFragmentShader = 
 'void main() {' +
-'  gl_FragColor = vec4(0.3, 0., 0., 1.);' +
+'  gl_FragColor = vec4(0.5, 0.1, 0.2, 1.);' +
 '}';
 
-var sdfFragmentShader =
+var sdfFragmentShaderPart1 =
 '#define PI 3.14159265359\n' +
-'mat2 rotate(float angle) {' +
-'  float c = cos(angle);' +
-'  float s = sin(angle);' +
-'  return mat2(c,-s,' +
-'              s,c);' +
-'}' +
-'float box(vec2 pos, vec2 size, float angle) {' +
-'  vec2 v = gl_FragCoord.xy - pos;' +
-'  v = rotate( angle ) * v;' +
-'  v = v + pos;' +
-'  vec2 b = size / 2.;' +
-'  v = max( (pos - b) - v,  v - (pos + b) );' +
-'  return min(0., max(v.x, v.y));' +
-'}' +
-'float circle(vec2 pos, float size) {' +
-'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;' +
-'}' +
-'void main() {' +
-'  if (box(vec2(150., 200.), vec2(100., 200.), PI / 5.) < 0.) {' +
-'    gl_FragColor = vec4(0., 0.3, 0., 1.);' +
-'  } else if (circle(vec2(600., 100.), 100.) < 0.) {' +
-'    gl_FragColor = vec4(0., 0., 0.3, 1.);' +
-'  } else {' +
-'    gl_FragColor = vec4(0., 0., 0., 0.);' +
-'  }' +
-'}';
+'#define EPS 1.0\n' +
+'uniform vec2 resolution;\n' +
+'mat2 rotate(float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  return mat2(c,-s,\n' +
+'              s,c);\n' +
+'}\n' +
+'float box(vec2 pos, vec2 size, float angle) {\n' +
+'  vec2 p = pos + resolution.xy;' +
+'  vec2 v = gl_FragCoord.xy - p;\n' +
+'  v = rotate( angle ) * v;\n' +
+'  v = v + p;\n' +
+'  vec2 b = size / 2.;\n' +
+'  v = max( (p - b) - v,  v - (p + b) );\n' +
+// '  v -= resolution.xy;\n' +
+// '  return min(0., max(v.x, v.y));\n' +
+'  return max(v.x, v.y);' +
+'}\n' +
+'float circle(vec2 pos, float size) {\n' +
+'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
+'}\n' +
+'void main() {';
 
-var sdfFragmentShaderPart2 =
-'';
-
-var sdfCircle = function(position, size, color) { return
-'  if (d1 < 0.) {' +
-'    gl_FragColor = vec4(0., 0.3, 0., 1.);';
+var sdfCircle = function(position, size, color) { return '' +
+'  if (circle(vec2(' + glslVector2(position) + '), ' + glslFloat(size) + ') < EPS) {' +
+'    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
 }
 
-var sdfBox = function(position, size, rotation, color) { return
-'  if (d1 < 0.) {' +
-'    gl_FragColor = vec4(0., 0.3, 0., 1.);';
+var sdfBox = function(position, size, angle, color) { return '' +
+'  if (box(vec2(' + glslVector2(position) + '), vec2(' + glslVector2(size) + '), ' + glslFloat(angle) + ') < EPS) {' +
+'    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
+}
+
+function makeSdfFragmentShader() {
+  var sdfFragmentShaderPart2 = '';
+  var prefix = '';
+  var empty = true;
+  for (var id in meshes) {
+    var m = meshes[id]
+    if (m == undefined) continue;
+    if (m.shape === 'Box') {
+      // console.log(m);
+      sdfFragmentShaderPart2 += prefix + sdfBox(m.position, new THREE.Vector2(m.geometry.parameters.width, m.geometry.parameters.height), 
+        m.rotation.z, m.material.color);
+      prefix = ' else ';
+      empty = false;
+    }
+  }
+  if (empty) {
+    return sdfFragmentShaderPart1 + ' gl_FragColor = vec4(0., 0., 0., 0.); }';
+  }
+
+  return sdfFragmentShaderPart1 + sdfFragmentShaderPart2 + ' else { gl_FragColor = vec4(0., 0., 0., 0.); } }';
+}
+
+function glslFloat(val) {
+  if (val % 1 == 0)
+    return '' + val + '.';
+  else
+    return '' + val;
+}
+
+function glslVector2(vec) {
+  return glslFloat(vec.x) + ',' + glslFloat(vec.y);
+}
+
+function glslColor(rgb, a) {
+  return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
 }
 
 init();
@@ -90,11 +121,15 @@ function init() {
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
-  sdfTest = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), new THREE.ShaderMaterial( {
+  // makeSdfFragmentShader();
+
+  sdfMaterial = new THREE.ShaderMaterial( {
+    uniforms: { resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } },
     vertexShader: floorVertexShader,
-    fragmentShader: sdfFragmentShader,
+    fragmentShader: makeSdfFragmentShader(),
     transparent: true,
-  } ) );
+  } );
+  sdfTest = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), sdfMaterial );
   scene.add(sdfTest);
   sdfTest.position.set(0, 0, 1);
 
@@ -111,6 +146,8 @@ function animate() {
 }
 function render() {
   renderer.render( scene, camera );
+  sdfMaterial.fragmentShader = makeSdfFragmentShader();
+  sdfMaterial.needsUpdate = true;
 }
 
 function addObjects(objectParams) {
@@ -118,7 +155,6 @@ function addObjects(objectParams) {
     var o = objectParams[i];
     var material = new THREE.MeshBasicMaterial({color: o.color});
     if (o instanceof BoxParam) {
-      // console.log(o);
       var box = new THREE.Mesh( new THREE.PlaneGeometry( o.size.x, o.size.y ), material );
       scene.add(box);
       box.position.set(o.position.x, o.position.y, 0);
@@ -132,8 +168,7 @@ function addObjects(objectParams) {
       // bodies.push( Matter.Bodies.rectangle(o.position.x, o.position.y, o.size.x, o.size.y), { isStatic: o.isStatic } );
     }
   }
-  generateSDF();
-  console.log(meshes);
+  // console.log(meshes);
   // Matter.World.add(engine.world, bodies);
 }
 
@@ -148,32 +183,10 @@ function removeObjects(ids) {
     scene.remove( meshes[id] );
     delete meshes[id];
   }
-
-  generateSDF();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Parallel Ray Bundling
-////////////////////////////////////////////////////////////////////////////////
-
-function generateSDF() {
-  for (var id in meshes) {
-    if (meshes[id].valueOf() == 'Box') {
-
-    }
-  }
-}
-
-function makeRayBundleShader() {
-  // material = new THREE.ShaderMaterial( {
-  //     uniforms: uniforms,
-  //     vertexShader: document.getElementById( 'vertexShader' ).textContent,
-  //     fragmentShader: document.getElementById( 'fragmentShader' ).textContent
-  //   });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Shapes
+// Object Setup
 ////////////////////////////////////////////////////////////////////////////////
 
 function BoxParam(params) {
@@ -198,10 +211,6 @@ function BoxParam(params) {
   }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Scene Presets
-////////////////////////////////////////////////////////////////////////////////
-
 function defaultObjectParams() {
   var objectParams = [];
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(400, 0), 'size':new THREE.Vector2(10, 810), 
@@ -218,8 +227,3 @@ function defaultObjectParams() {
                            'rotation':0., 'color':"#009966", 'emission':"#ff0000", 'isStatic':true } ) );
   return objectParams;
 }
-
-// document.mousemove = function(event) {
-//   mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-//   mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-// }
