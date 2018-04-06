@@ -1,4 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <style>
@@ -17,6 +17,16 @@
   #container {
     width: 100%;
     height: 500px;
+  }
+  #error {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 412px;
+    height: 412px;
+    padding: 50px;
+    text-align: center;
+    background: #DFDFDF;
   }
 </style>
 <title>CS 184 Mesh Editor</title>
@@ -155,7 +165,7 @@
           </tr>
         </table>
       </div>
-      <li>Whereas these examples used direct OpenGL calls, we plan to implement our version in WebGL. This will make it easier to create interactive controls and novel features.</li>
+      <li>Novelty: whereas these examples used direct OpenGL calls, we plan to implement our version using shaders in WebGL. Furthermore, no one has formally published material regarding the 2D implementation, which unlike the 3D version is uniquely suited to real-time application.</li>
     </ul>
 
 		<br/><br/>
@@ -207,11 +217,14 @@
 </div>
 <br/><br/>
 
-<!-- <h2>Current Work-in-progress</h2>
-<div id="container"></div>
-<script src="../src/three.min.js"></script>
-<script src="../src/stats.min.js"></script>
-<script src="../src/main.js"></script> -->
-
+<h2>Current Work-in-progress</h2>
+<div id="container">
+  <div id="error"><noscript>Please enable JavaScript.</noscript></div>
+</div>
+<script type="text/javascript" src="../src/three.min.js"></script>     <!-- Rendering      -->
+<script type="text/javascript" src="../src/stats.min.js"></script>     <!-- Profiling      -->
+<script type="text/javascript" src="../src/matter.min.js"></script>    <!-- 2D Physics     -->
+<script type="text/javascript" src="../src/main.js"></script>
+<button onclick="javascript:generateSDF()">Generate SDF</button>
 </body>
 </html>
