@@ -71,9 +71,9 @@ function makeSdfFragmentShader() {
   }
   if (empty) {
     return sdfFragmentShaderPart1 + ' gl_FragColor = vec4(0., 0., 0., 0.); }';
+  } else {
+    return sdfFragmentShaderPart1 + sdfFragmentShaderPart2 + ' else { gl_FragColor = vec4(0., 0., 0., 0.); } }';
   }
-
-  return sdfFragmentShaderPart1 + sdfFragmentShaderPart2 + ' else { gl_FragColor = vec4(0., 0., 0., 0.); } }';
 }
 
 function glslFloat(val) {
