@@ -3,6 +3,7 @@ var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
 var floor, floorMaterial;
 var sdfTest, sdfMaterial;
+var bufferScene, bufferTexture;
 var showStats = true;
 var nextObjectId = 0;
 var frustumSize = 1000;
@@ -91,28 +92,31 @@ function glslColor(rgb, a) {
   return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Main Program
+////////////////////////////////////////////////////////////////////////////////
+
 init();
 animate();
 
 function init() {
-  var aspect = window.innerWidth / window.innerHeight;
+  var container = document.getElementById('container');
+  var aspect = container.offsetWidth / container.offsetHeight;
   camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1, 1 );
   scene = new THREE.Scene();
   scene.background = new THREE.Color( 0xf0f0f0 );
   raycaster = new THREE.Raycaster();
   renderer = new THREE.WebGLRenderer();
-  var container = document.getElementById('container');
+  container.appendChild(renderer.domElement);
   renderer.setPixelRatio( window.devicePixelRatio );
   renderer.setSize( container.offsetWidth, container.offsetHeight );
-  container.appendChild(renderer.domElement);
   if (showStats) {
     stats = new Stats();
     container.appendChild( stats.dom );
   }
-  // engine = Matter.Engine.create({render: {visible: false}});
 
+  // Objects and floor
   addObjects(defaultObjectParams());
-
   floorMaterial = new THREE.ShaderMaterial( {
     vertexShader: floorVertexShader,
     fragmentShader: floorFragmentShader
@@ -121,8 +125,7 @@ function init() {
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
-  // makeSdfFragmentShader();
-
+  // Debug SDF surface
   sdfMaterial = new THREE.ShaderMaterial( {
     uniforms: { resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } },
     vertexShader: floorVertexShader,
@@ -133,7 +136,10 @@ function init() {
   scene.add(sdfTest);
   sdfTest.position.set(0, 0, 1);
 
-  // Matter.Engine.run(engine);
+  // Ray bundling
+  // var bufferScene = new THREE.Scene();
+  // var bufferTexture = new THREE.WebGLRenderTarget( 1024, 30 * 360, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+  // var bufferMaterial = new THREE.MeshBasicMaterial({map:bufferTexture});
 };
 
 function animate() {
@@ -145,10 +151,16 @@ function animate() {
   }
 }
 function render() {
+  // renderer.render( bufferScene, camera, bufferTexture );
   renderer.render( scene, camera );
   sdfMaterial.fragmentShader = makeSdfFragmentShader();
   sdfMaterial.needsUpdate = true;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Objects
+////////////////////////////////////////////////////////////////////////////////
+
 
 function addObjects(objectParams) {
   for (var i = 0; i < objectParams.length; i++) {
@@ -186,7 +198,7 @@ function removeObjects(ids) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Object Setup
+// Object Params
 ////////////////////////////////////////////////////////////////////////////////
 
 function BoxParam(params) {
