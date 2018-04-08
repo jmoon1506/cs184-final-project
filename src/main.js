@@ -2,8 +2,14 @@ var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
 var floor, floorMaterial;
-var sdfTest, sdfMaterial;
-var bufferScene, bufferTexture;
+// var sdfTest, sdfMaterial;
+var meshBufferScene, meshBufferTexture, meshBufferMaterial, meshBufferMesh; // store shape info in buffer
+// var intersectBufferScene, intersectBufferTexture, intersectBufferMaterial; // store intersections in buffer
+var floorMesh, floorMaterial; // globally illuminated surface
+var meshBufferSize = 1024; // max object count
+var intersectBufferWidth = 1024;
+var intersectBufferCollisions = 30; // max intersection count
+var intersectBufferAngles = 180;
 var showStats = true;
 var nextObjectId = 0;
 var frustumSize = 1000;
@@ -16,8 +22,35 @@ var floorVertexShader =
 
 var floorFragmentShader = 
 'void main() {' +
-'  gl_FragColor = vec4(0.5, 0.1, 0.2, 1.);' +
+'  gl_FragColor = vec4(0.5, 0.1, 0.2, 0.1);' +
 '}';
+
+var meshBufferShader = 
+'';
+
+var sdfFragmentShader =
+'#define PI 3.14159265359\n' +
+'#define EPS 1.0\n' +
+'uniform vec2 resolution;\n' +
+'mat2 rotate(float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  return mat2(c,-s,\n' +
+'              s,c);\n' +
+'}\n' +
+'float box(vec2 pos, vec2 size, float angle) {\n' +
+'  vec2 p = pos + resolution.xy;' +
+'  vec2 v = gl_FragCoord.xy - p;\n' +
+'  v = rotate( angle ) * v;\n' +
+'  v = v + p;\n' +
+'  vec2 b = size / 2.;\n' +
+'  v = max( (p - b) - v,  v - (p + b) );\n' +
+'  return max(v.x, v.y);' +
+'}\n' +
+'float circle(vec2 pos, float size) {\n' +
+'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
+'}\n' +
+'void main() {';
 
 var sdfFragmentShaderPart1 =
 '#define PI 3.14159265359\n' +
@@ -125,6 +158,15 @@ function init() {
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
+  // Mesh buffer
+  meshBufferScene = new THREE.Scene();
+  meshBufferTexture = new THREE.WebGLRenderTarget( meshBufferSize * 2, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+  meshBufferMaterial = new THREE.ShaderMaterial( {
+    // vertexShader: floorVertexShader,
+    // fragmentShader: makeSdfFragmentShader(),
+  } );
+  meshBufferMesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 2, 1 ), meshBufferMaterial );
+
   // Debug SDF surface
   sdfMaterial = new THREE.ShaderMaterial( {
     uniforms: { resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } },
@@ -136,14 +178,23 @@ function init() {
   scene.add(sdfTest);
   sdfTest.position.set(0, 0, 1);
 
+  
+
   // Ray bundling
-  // var bufferScene = new THREE.Scene();
-  // var bufferTexture = new THREE.WebGLRenderTarget( 1024, 30 * 360, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+  // bufferScene = new THREE.Scene();
+  // bufferTexture = new THREE.WebGLRenderTarget( 1024, 30 * 360, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
   // var bufferMaterial = new THREE.MeshBasicMaterial({map:bufferTexture});
 };
 
 function animate() {
   requestAnimationFrame( animate );
+  for (var id in meshes) {
+    var m = meshes[id];
+    if (!m.isStatic) {
+      m.position.set(m.position.x + 2.0 * Math.random() - 1.0, m.position.y + 2.0 * Math.random() - 1.0, 0);
+      // console.log(m.position);
+    }
+  }
   render();
 
   if (showStats) {
@@ -151,7 +202,7 @@ function animate() {
   }
 }
 function render() {
-  // renderer.render( bufferScene, camera, bufferTexture );
+  renderer.render( meshBufferScene, camera, meshBufferTexture );
   renderer.render( scene, camera );
   sdfMaterial.fragmentShader = makeSdfFragmentShader();
   sdfMaterial.needsUpdate = true;
@@ -234,8 +285,8 @@ function defaultObjectParams() {
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 400), 'size':new THREE.Vector2(10, 810), 
                            'rotation':Math.PI/2., 'color':"#009966", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(200, 150), 'size':new THREE.Vector2(100, 200), 
-                           'rotation':Math.PI/5., 'color':"#009966", 'isStatic':true } ) );
+                           'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
-                           'rotation':0., 'color':"#009966", 'emission':"#ff0000", 'isStatic':true } ) );
+                           'rotation':0., 'color':"#009966", 'emission':"#ff0000", 'isStatic':false } ) );
   return objectParams;
 }
