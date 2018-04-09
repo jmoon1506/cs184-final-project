@@ -2,9 +2,7 @@ var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
 var floor, floorMaterial;
-// var sdfTest, sdfMaterial;
-var meshBuffer = {};
-// var intersectBufferScene, intersectBufferTexture, intersectBufferMaterial; // store intersections in buffer
+var testMesh;
 var floorMesh, floorMaterial; // globally illuminated surface
 var meshBufferSize = 1024; // max object count
 var intersectBufferWidth = 1024;
@@ -14,6 +12,7 @@ var showStats = true;
 var nextObjectId = 0;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
+var lastTick = 0;
 
 var getNextMeshId = function() {
   for (var i = 0; i < meshBufferSize; i++) {
@@ -22,16 +21,65 @@ var getNextMeshId = function() {
   throw "Could not find an empty index in the mesh buffer!";
 }
 
+var meshBufferVertexShader = 
+'attribute vec4 test_color;\n' +
+'attribute vec4 id_shape_rot;\n' +
+'attribute vec4 pos_size;\n' +
+// 'attribute vec4 emissions;\n' +
+// 'varying vec4 v_id_shape_rot;\n' +
+'varying vec4 v_pos_size;\n' +
+// 'varying vec4 v_emissions;\n' +
+'void main() {\n' +
+'  gl_PointSize = 3.;\n' +
+// '  gl_Position = projectionMatrix * modelViewMatrix * vec4( 3. * id_shape_rot.x + 1.5, 0.5, 0., 1.);\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );' +
+'}\n';
+
 var meshBufferFragmentShader = 
+// 'varying vec4 v_id_shape_rot;\n' +
+'varying vec4 v_pos_size;\n' +
+// 'varying vec4 v_emissions;\n' +
+'void main() {\n' +
+'  gl_FragColor = vec4(1., 0., 0., 1.);\n' +
+'}\n';
+
+var testVertShader = 
+'attribute float size;' +
+'attribute vec3 customColor;' +
+'varying vec3 vColor;' +
 'void main() {' +
-'  gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
+'  vColor = customColor;' +
+'  gl_PointSize = size;' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );' +
 '}';
+
+var testFragShader = 
+'uniform vec3 color;' +
+'uniform sampler2D texture;' +
+'varying vec3 vColor;' +
+'void main() {' +
+'  gl_FragColor = vec4( color * vColor, 1.0 );' +
+'}';
+// 'uniform vec2 resolution;' +
+// 'vec3 colorA = vec3(0.149,0.141,0.912);' +
+// 'vec3 colorB = vec3(1.000,0.833,0.224);' +
+// 'void main() {' +
+// '  gl_FragColor = vec4(1024./resolution.x, 0., 0., 1.);' +
+// '}';
+
+var sdfVertexShader = 
+'varying vec2 fUv;\n' +
+'void main() {\n' +
+'  fUv = uv;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n' +
+'}\n';
 
 var sdfFragmentShader =
 '#define PI 3.14159265359\n' +
 '#define EPS 1.0\n' +
-'uniform sampler2D texture;\n' +
+'uniform sampler2D meshBuffer;\n' +
 'uniform vec2 resolution;\n' +
+'varying vec2 fUv;\n' +
 'mat2 rotate(float angle) {\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
@@ -51,7 +99,7 @@ var sdfFragmentShader =
 '  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
 '}\n' +
 'void main() {' +
-// '  gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
+// '  gl_FragColor = texture2D(meshBuffer, vec2(fUv.x, 0.));' +
 '  if (gl_FragCoord.x < 1024. && gl_FragCoord.y < 100.) {' +
 '    gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
 '  } else {' +
@@ -164,37 +212,96 @@ function init() {
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
-  meshBuffer.geometry = new THREE.BufferGeometry();
-  // geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
-  meshBuffer.material = new THREE.ShaderMaterial( { } );
+  var positions = []
+  var test_color = [];
+  var id_shape_rot = [];
+  var pos_size = [];
+  var emissions = [];
+  for (var i = 0; i < meshBufferSize; i++) {
+    if (i in meshes) {
+      var m = meshes[i];
+      id_shape_rot.push(i, m.shape, m.rotation.z, 0);
+      pos_size.push(m.position.x, m.position.y, m.size.x, m.size.y);
+      var e = hexToRGBA(m.emission);
+      emissions.push(e.r, e.g, e.b, e.a);
+    } else {
+      id_shape_rot.push(0, 0, 0, 0);
+      pos_size.push(0, 0, 0, 0);
+      emissions.push(0, 0, 0, 0);
+    }
+    var val = i / meshBufferSize;
+    test_color.push(val, val, val, 1.0);
+    positions.push(i, 0, 0, 0);
+  }
+
+  // console.log(positions);
+  // console.log(pos_size);
+  // console.log(emissions);
+
+/*  meshBuffer.geometry = new THREE.BufferGeometry();
+  meshBuffer.geometry.addAttribute( 'positions', new THREE.Float32BufferAttribute( positions, 4 ) );
+  meshBuffer.geometry.addAttribute( 'test_color', new THREE.Float32BufferAttribute( test_color, 4 ) );
+  meshBuffer.geometry.addAttribute( 'id_shape_rot', new THREE.Float32BufferAttribute( id_shape_rot, 4 ) );
+  meshBuffer.geometry.addAttribute( 'pos_size', new THREE.Float32BufferAttribute( pos_size, 4 ) );
+  meshBuffer.geometry.addAttribute( 'emissions', new THREE.Float32BufferAttribute( emissions, 4 ) );
+  meshBuffer.material = new THREE.ShaderMaterial( { 'vertexShader': meshBufferVertexShader, 'fragmentShader': meshBufferFragmentShader } );
   meshBuffer.points = new THREE.Points( meshBuffer.geometry, meshBuffer.material );
 
   meshBuffer.scene = new THREE.Scene();
-  meshBuffer.texture = new THREE.WebGLRenderTarget( meshBufferSize * 2, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
-  meshBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 2, 1 ), meshBuffer.material );
+  meshBuffer.texture = new THREE.WebGLRenderTarget( meshBufferSize * 3, 100, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+  meshBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 3, 100 ), meshBuffer.material );
   meshBuffer.scene.add(meshBuffer.mesh);
-  updateMeshBuffer();
+  meshBuffer.mesh.position.set(0, 0, 1);
+
+  meshBuffer.testmesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 3, 100 ), new THREE.MeshBasicMaterial({ color: "#ff0000" }) );
+  meshBuffer.scene.add(meshBuffer.testmesh);
+  meshBuffer.testmesh.position.set(0, 0, 1);*/
+
+  // Debug mesh buffer
+  // var sdfMaterial = new THREE.MeshBasicMaterial({map:meshBuffer.texture});
+  // sdfTest = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 3, 100 ), sdfMaterial );
+  // scene.add(sdfTest);
+  // sdfTest.position.set(0, 0, 1);
+      // meshBuffer: { type: "t", value: meshBuffer.texture.texture },
+
+  var vertex = new THREE.Vector3();
+  var color = new THREE.Vector3();
+
+  var positions = new Float32Array( 100 * 3 );
+  var colors = new Float32Array( 100 * 3 );
+  var sizes = new Float32Array( 100 );
+  for ( var i = 0; i < 100; i ++ ) {
+    vertex.x = ( Math.random() * 2 - 1 ) * 100;
+    vertex.y = ( Math.random() * 2 - 1 ) * 100;
+    vertex.z = 0;
+    vertex.toArray( positions, i * 3 );
+    color.x = Math.random();
+    color.y = Math.random();
+    color.z = Math.random();
+    color.toArray( colors, i * 3 );
+    sizes[ i ] = 10;
+  }
+  var geometry = new THREE.BufferGeometry();
+  geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+  geometry.addAttribute( 'customColor', new THREE.BufferAttribute( colors, 3 ) );
+  geometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
 
   // Debug SDF surface
-  sdfMaterial = new THREE.ShaderMaterial( {
+  var material = new THREE.ShaderMaterial( {
     uniforms: { 
-      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
-      meshBuffer: { tpye: "t", value: meshBuffer.texture },
+      color:      { value: new THREE.Color( 0xffffff ) },
     },
-    fragmentShader: sdfFragmentShader,
-    transparent: true,
+    vertexShader: testVertShader,
+    fragmentShader: testFragShader,
+    blending:       THREE.AdditiveBlending,
+    depthTest:      false,
+    transparent:    true
   } );
-  // sdfMaterial = new THREE.ShaderMaterial( {
-  //   uniforms: { resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } },
-  //   fragmentShader: makeSdfFragmentShader(),
-  //   transparent: true,
-  // } );
-  sdfTest = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), sdfMaterial );
-  scene.add(sdfTest);
-  sdfTest.position.set(0, 0, 1);
+  testMesh = new THREE.Points( geometry, material );
+  scene.add(testMesh);
 };
 
-function animate() {
+function animate(tick) {
   requestAnimationFrame( animate );
   for (var id in meshes) {
     var m = meshes[id];
@@ -203,6 +310,10 @@ function animate() {
       // console.log(m.position);
     }
   }
+  if(!lastTick || tick - lastTick >= 500) {
+    lastTick = tick;
+    updateTestPoints();
+  }
   render();
 
   if (showStats) {
@@ -210,13 +321,21 @@ function animate() {
   }
 }
 function render() {
-  renderer.render( meshBuffer.scene, camera, meshBuffer.texture );
+  // renderer.render( meshBuffer.scene, camera, meshBuffer.texture );
   renderer.render( scene, camera );
   // sdfMaterial.fragmentShader = makeSdfFragmentShader();
   // sdfMaterial.needsUpdate = true;
 }
 
-function updateMeshBuffer() {
+function updateTestPoints() {
+  var attributes = testMesh.geometry.attributes;
+  for (var i = 0; i < 100 * 3; i++) {
+    attributes.customColor.array[i] = Math.random();
+  }
+  attributes.customColor.needsUpdate = true;
+}
+
+/*function updateMeshBuffer() {
   var positions = [];
   var meshProps = []; // type, position, size, rotation, emission (7 floats)
   var attributes = meshBuffer.geometry.attributes;
@@ -230,7 +349,7 @@ function updateMeshBuffer() {
     // attributes.rotation.array[id] = m.rotation.z;
     // attributes.emission.array[id] = m.emission;
   }
-}
+}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // Objects
@@ -241,22 +360,21 @@ function addObjects(objectParams) {
     var o = objectParams[i];
     var meshId = getNextMeshId();
     var material = new THREE.MeshBasicMaterial({ color: o.color });
+    var mesh;
     if (o instanceof BoxParam) {
-      var box = new THREE.Mesh( new THREE.PlaneGeometry( o.size.x, o.size.y ), material );
-      scene.add(box);
-      box.size = o.size;
-      box.position.set(o.position.x, o.position.y, 0);
-      box.rotation.z = o.rotation;
-      box.isStatic = o.isStatic;
-      box.isEmitter = o.isEmitter;
-      box.emission = o.emission;
-      box.shape = 'Box';
-      box.meshId = meshId;
-      // console.log(box.idx);
+      mesh = new THREE.Mesh( new THREE.PlaneGeometry( o.size.x, o.size.y ), material );
+      mesh.size = o.size;
+      mesh.rotation.z = o.rotation;
+      mesh.emission = o.emission;
+      mesh.shape = 0;
+    } else if (o instanceof CircleParam) {
 
-      meshes[box.meshId] = box;
-      // bodies.push( Matter.Bodies.rectangle(o.position.x, o.position.y, o.size.x, o.size.y), { isStatic: o.isStatic } );
     }
+    scene.add(mesh);
+    mesh.isStatic = o.isStatic;
+    mesh.position.set(o.position.x, o.position.y, 0);
+    mesh.meshId = meshId;
+    meshes[mesh.meshId] = mesh;
   }
   // console.log(meshes);
   // Matter.World.add(engine.world, bodies);
@@ -286,10 +404,31 @@ function BoxParam(params) {
   this.rotation = params['rotation'];
   this.color = params['color'];
   if ( 'emission' in params ) {
-    this.isEmitter = true;
+    // this.isEmitter = true;
     this.emission = params['emission'];
   } else {
-    this.isEmitter = false;
+    // this.isEmitter = false;
+    this.emission = "#0000";
+  }
+  if ( 'isStatic' in params ) {
+    this.isStatic = params['isStatic'];
+  } else {
+    this.isStatic = true;
+  }
+  if ( 'mass' in params ) {
+    this.mass = params['mass'];
+  }
+}
+
+function CircleParam(params) {
+  // this.id = nextObjectId++;
+  this.position = params['position'];
+  this.radius = params['radius'];
+  this.color = params['color'];
+  if ( 'emission' in params ) {
+    this.emission = params['emission'];
+  } else {
+    this.emission = "#0000";
   }
   if ( 'isStatic' in params ) {
     this.isStatic = params['isStatic'];
@@ -314,6 +453,20 @@ function defaultObjectParams() {
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(200, 150), 'size':new THREE.Vector2(100, 200), 
                            'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
-                           'rotation':0., 'color':"#009966", 'emission':"#ff0000", 'isStatic':false } ) );
+                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
   return objectParams;
+}
+
+function hexToRGBA(hex) {
+  if (hex.length == 4) hex += 'f';
+  else if (hex.length == 7) hex += 'ff';
+  var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])([a-f\d])$/i; // Expand shorthand form (e.g. "03FF") to full form (e.g. "0033FFFF")
+  hex = hex.replace(shorthandRegex, function(m, r, g, b, a) { return r + r + g + g + b + b + a + a; });
+  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+      a: parseInt(result[4], 16)
+  } : null;
 }
