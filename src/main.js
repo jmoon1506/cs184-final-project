@@ -3,7 +3,7 @@ var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
 var floor, floorMaterial;
 // var sdfTest, sdfMaterial;
-var meshBufferScene, meshBufferTexture, meshBufferMaterial, meshBufferMesh; // store shape info in buffer
+var meshBuffer = {};
 // var intersectBufferScene, intersectBufferTexture, intersectBufferMaterial; // store intersections in buffer
 var floorMesh, floorMaterial; // globally illuminated surface
 var meshBufferSize = 1024; // max object count
@@ -15,22 +15,22 @@ var nextObjectId = 0;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
 
-var floorVertexShader = 
-'void main() {' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );' +
-'}';
+var getNextMeshId = function() {
+  for (var i = 0; i < meshBufferSize; i++) {
+    if (meshes[i] == undefined) return i;
+  }
+  throw "Could not find an empty index in the mesh buffer!";
+}
 
-var floorFragmentShader = 
+var meshBufferFragmentShader = 
 'void main() {' +
-'  gl_FragColor = vec4(0.5, 0.1, 0.2, 0.1);' +
+'  gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
 '}';
-
-var meshBufferShader = 
-'';
 
 var sdfFragmentShader =
 '#define PI 3.14159265359\n' +
 '#define EPS 1.0\n' +
+'uniform sampler2D texture;\n' +
 'uniform vec2 resolution;\n' +
 'mat2 rotate(float angle) {\n' +
 '  float c = cos(angle);\n' +
@@ -50,7 +50,14 @@ var sdfFragmentShader =
 'float circle(vec2 pos, float size) {\n' +
 '  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
 '}\n' +
-'void main() {';
+'void main() {' +
+// '  gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
+'  if (gl_FragCoord.x < 1024. && gl_FragCoord.y < 100.) {' +
+'    gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
+'  } else {' +
+'    gl_FragColor = vec4(0.);' +
+'  }' +
+'}';
 
 var sdfFragmentShaderPart1 =
 '#define PI 3.14159265359\n' +
@@ -148,42 +155,43 @@ function init() {
     container.appendChild( stats.dom );
   }
 
-  // Objects and floor
   addObjects(defaultObjectParams());
+
   floorMaterial = new THREE.ShaderMaterial( {
-    vertexShader: floorVertexShader,
-    fragmentShader: floorFragmentShader
+    fragmentShader: 'void main() { gl_FragColor = vec4(0.5, 0.1, 0.2, 0.1); }',
   } );
   floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMaterial );
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
-  // Mesh buffer
-  meshBufferScene = new THREE.Scene();
-  meshBufferTexture = new THREE.WebGLRenderTarget( meshBufferSize * 2, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
-  meshBufferMaterial = new THREE.ShaderMaterial( {
-    // vertexShader: floorVertexShader,
-    // fragmentShader: makeSdfFragmentShader(),
-  } );
-  meshBufferMesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 2, 1 ), meshBufferMaterial );
+  meshBuffer.geometry = new THREE.BufferGeometry();
+  // geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
+  meshBuffer.material = new THREE.ShaderMaterial( { } );
+  meshBuffer.points = new THREE.Points( meshBuffer.geometry, meshBuffer.material );
+
+  meshBuffer.scene = new THREE.Scene();
+  meshBuffer.texture = new THREE.WebGLRenderTarget( meshBufferSize * 2, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+  meshBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 2, 1 ), meshBuffer.material );
+  meshBuffer.scene.add(meshBuffer.mesh);
+  updateMeshBuffer();
 
   // Debug SDF surface
   sdfMaterial = new THREE.ShaderMaterial( {
-    uniforms: { resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } },
-    vertexShader: floorVertexShader,
-    fragmentShader: makeSdfFragmentShader(),
+    uniforms: { 
+      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+      meshBuffer: { tpye: "t", value: meshBuffer.texture },
+    },
+    fragmentShader: sdfFragmentShader,
     transparent: true,
   } );
+  // sdfMaterial = new THREE.ShaderMaterial( {
+  //   uniforms: { resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } },
+  //   fragmentShader: makeSdfFragmentShader(),
+  //   transparent: true,
+  // } );
   sdfTest = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), sdfMaterial );
   scene.add(sdfTest);
   sdfTest.position.set(0, 0, 1);
-
-  
-
-  // Ray bundling
-  // bufferScene = new THREE.Scene();
-  // bufferTexture = new THREE.WebGLRenderTarget( 1024, 30 * 360, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
-  // var bufferMaterial = new THREE.MeshBasicMaterial({map:bufferTexture});
 };
 
 function animate() {
@@ -202,32 +210,51 @@ function animate() {
   }
 }
 function render() {
-  renderer.render( meshBufferScene, camera, meshBufferTexture );
+  renderer.render( meshBuffer.scene, camera, meshBuffer.texture );
   renderer.render( scene, camera );
-  sdfMaterial.fragmentShader = makeSdfFragmentShader();
-  sdfMaterial.needsUpdate = true;
+  // sdfMaterial.fragmentShader = makeSdfFragmentShader();
+  // sdfMaterial.needsUpdate = true;
+}
+
+function updateMeshBuffer() {
+  var positions = [];
+  var meshProps = []; // type, position, size, rotation, emission (7 floats)
+  var attributes = meshBuffer.geometry.attributes;
+  for (var i = 0; i < meshBufferSize; i++) {
+    positions.push(i);
+  }
+  for (var id in meshes) {
+    var m = meshes[id];
+    // attributes.position.array[id] = m.position;
+    // attributes.size.array[id] = m.size;
+    // attributes.rotation.array[id] = m.rotation.z;
+    // attributes.emission.array[id] = m.emission;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Objects
 ////////////////////////////////////////////////////////////////////////////////
 
-
 function addObjects(objectParams) {
   for (var i = 0; i < objectParams.length; i++) {
     var o = objectParams[i];
-    var material = new THREE.MeshBasicMaterial({color: o.color});
+    var meshId = getNextMeshId();
+    var material = new THREE.MeshBasicMaterial({ color: o.color });
     if (o instanceof BoxParam) {
       var box = new THREE.Mesh( new THREE.PlaneGeometry( o.size.x, o.size.y ), material );
       scene.add(box);
+      box.size = o.size;
       box.position.set(o.position.x, o.position.y, 0);
       box.rotation.z = o.rotation;
       box.isStatic = o.isStatic;
       box.isEmitter = o.isEmitter;
       box.emission = o.emission;
       box.shape = 'Box';
+      box.meshId = meshId;
+      // console.log(box.idx);
 
-      meshes[o.id] = box;
+      meshes[box.meshId] = box;
       // bodies.push( Matter.Bodies.rectangle(o.position.x, o.position.y, o.size.x, o.size.y), { isStatic: o.isStatic } );
     }
   }
@@ -253,7 +280,7 @@ function removeObjects(ids) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function BoxParam(params) {
-  this.id = nextObjectId++;
+  // this.id = nextObjectId++;
   this.position = params['position'];
   this.size = params['size'];
   this.rotation = params['rotation'];
