@@ -5,7 +5,8 @@ var floor, floorMaterial;
 var testMesh;
 var meshBuffer = {};
 var intersectBuffer = {};
-var meshBufferSize = 1024; // max object count
+var meshBufferWidth = 13; // pixels per object
+var meshBufferLength = 1024; // max object count
 var intersectBufferWidth = 1024;
 var intersectBufferCollisions = 30; // max intersection count
 var intersectBufferAngles = 180;
@@ -14,13 +15,7 @@ var nextObjectId = 0;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
 var lastTick = 0;
-
-var getNextMeshId = function() {
-  for (var i = 0; i < meshBufferSize; i++) {
-    if (meshes[i] == undefined) return i;
-  }
-  throw "Could not find an empty index in the mesh buffer!";
-}
+var tex = new THREE.TextureLoader().load( "../src/stripes.png" );
 
 var meshBufVert = 
 'attribute vec4 id_shape_rot;\n' +
@@ -40,6 +35,7 @@ var meshBufVert =
 '}';
 
 var meshBufFrag = 
+'varying vec4 v_id_shape_rot;\n' +
 'varying vec4 v_pos_size;\n' +
 'varying vec4 v_emission;\n' +
 'varying float v_index;\n' +
@@ -54,19 +50,24 @@ var meshBufFrag =
 '}';
 
 var isectBufVert = 
-'attribute vec4 id_shape_rot;' +
-'varying vec4 v_id_shape_rot;' +
-'void main() {' +
-'  v_id_shape_rot = id_shape_rot;' +
-'  gl_PointSize = 1.;' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );' +
+'varying vec2 v_uv;\n' +
+'uniform sampler2D meshBuffer;\n' +
+'void main() {\n' +
+'  v_uv = uv;\n' +
+'  gl_PointSize = 1.;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
 '}';
 
 var isectBufFrag = 
-'uniform sampler2D texture;' +
-'varying vec4 v_id_shape_rot;' +
-'void main() {' +
-'  gl_FragColor = v_id_shape_rot;' +
+'varying vec2 v_uv;\n' +
+'uniform vec2 resolution;\n' +
+// 'uniform float blah;\n' +
+'uniform sampler2D meshBuffer;\n' +
+'void main() {\n' +
+// '  gl_FragColor = vec4(1., 0., 0., 1.);' +
+'  gl_FragColor = texture2D(meshBuffer, v_uv);' +
+// '  gl_FragColor = vec4(gl_FragCoord.y / 1024., 0., 0., 1.);\n' +
+// '  gl_FragColor = texture2D( meshBuffer, vec2(gl_FragCoord.x / 13., gl_FragCoord.y / 1024.) );\n' +
 '}';
 
 var sdfFragmentShader =
@@ -207,15 +208,45 @@ function init() {
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
-  // meshBuffer.scene = new THREE.Scene();
-  // meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferSize * 3, 100, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+  meshBuffer.scene = new THREE.Scene();
+  meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferWidth, meshBufferLength,
+    { format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
 
-  testMesh = setupBuffer(3, meshBufferSize, meshBufVert, meshBufFrag);
-  testMesh.geometry.addAttribute( 'id_shape_rot', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferSize * 4 ), 4 ) );
-  testMesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferSize * 4 ), 4 ) );
-  testMesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferSize * 4 ), 4 ) );
-  scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);
+  meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferLength, meshBufVert, meshBufFrag);
+  meshBuffer.mesh.geometry.addAttribute( 'id_shape_rot', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferLength * 4 ), 4 ) );
+  meshBuffer.mesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferLength * 4 ), 4 ) );
+  meshBuffer.mesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferLength * 4 ), 4 ) );
+  meshBuffer.scene.add(meshBuffer.mesh);
+  // scene.add(meshBuffer.mesh);
+/*
+  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferLength, isectBufVert, isectBufFrag);
+  intersectBuffer.mesh.geometry.addAttribute( 'customColor', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferLength * 4 ), 4 ) );
+  intersectBuffer.mesh.material.uniforms = { 
+    meshBuffer: { type: "t", value: tex },
+    // meshBuffer: { type: "t", value: meshBuffer.target.texture },
+    resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferLength ) },
+  };*/
+  var material = new THREE.ShaderMaterial( {
+    vertexShader: isectBufVert, 
+    fragmentShader: isectBufFrag, 
+    depthTest: false, transparent: false,
+    uniforms: {
+      meshBuffer: { type: "t", value: meshBuffer.target.texture },
+      // meshBuffer: { type: "t", value: tex },
+      // resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferLength ) },
+    } 
+  } );
+
+  intersectBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry(meshBufferWidth, meshBufferLength), material );
+                                         
+  // intersectBuffer.mesh.material.uniforms.blah = { type: 'f', value: 0. } ;
+  scene.add(intersectBuffer.mesh);
+
+/*  testMesh = setupBuffer(3, meshBufferLength, meshBufVert, meshBufFrag);
+  testMesh.geometry.addAttribute( 'id_shape_rot', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferLength * 4 ), 4 ) );
+  testMesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferLength * 4 ), 4 ) );
+  testMesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferLength * 4 ), 4 ) );
+  scene.add(testMesh);*/
 };
 
 function setupBuffer(width, height, vertexShader, fragmentShader) {
@@ -256,41 +287,31 @@ function animate(tick) {
   }
 }
 function render() {
-  // renderer.render( meshBuffer.scene, camera, meshBuffer.texture );
+  renderer.render( meshBuffer.scene, camera, meshBuffer.target );
   renderer.render( scene, camera );
   // sdfMaterial.fragmentShader = makeSdfFragmentShader();
   // sdfMaterial.needsUpdate = true;
 }
 
 function updateTestPoints() {
-  var id_shape_rot = testMesh.geometry.attributes.id_shape_rot;
-  var pos_size = testMesh.geometry.attributes.pos_size;
-  var emission = testMesh.geometry.attributes.emission;
-  for (var i = 0; i < 3 * meshBufferSize * 4; i++) {
-    id_shape_rot.array[i] = Math.random();
+  var id_shape_rot = meshBuffer.mesh.geometry.attributes.id_shape_rot;
+  var pos_size = meshBuffer.mesh.geometry.attributes.pos_size;
+  var emission = meshBuffer.mesh.geometry.attributes.emission;
+  for (var i = 0; i < meshBufferWidth * meshBufferLength * 4; i++) {
+    if (i % 4 == 0 || i % 4 == 3) {
+      id_shape_rot.array[i] = 1;
+    } else {
+      id_shape_rot.array[i] = 0;
+    }
+    // id_shape_rot.array[i] = Math.random();
     pos_size.array[i] = Math.random();
     emission.array[i] = Math.random();
   }
   id_shape_rot.needsUpdate = true;
   pos_size.needsUpdate = true;
   emission.needsUpdate = true;
+  // intersectBuffer.mesh.material.uniforms.meshBuffer.value.needsUpdate = true;
 }
-
-/*function updateMeshBuffer() {
-  var positions = [];
-  var meshProps = []; // type, position, size, rotation, emission (7 floats)
-  var attributes = meshBuffer.geometry.attributes;
-  for (var i = 0; i < meshBufferSize; i++) {
-    positions.push(i);
-  }
-  for (var id in meshes) {
-    var m = meshes[id];
-    // attributes.position.array[id] = m.position;
-    // attributes.size.array[id] = m.size;
-    // attributes.rotation.array[id] = m.rotation.z;
-    // attributes.emission.array[id] = m.emission;
-  }
-}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // Objects
@@ -317,8 +338,6 @@ function addObjects(objectParams) {
     mesh.meshId = meshId;
     meshes[mesh.meshId] = mesh;
   }
-  // console.log(meshes);
-  // Matter.World.add(engine.world, bodies);
 }
 
 function removeObjects(ids) {
@@ -332,6 +351,13 @@ function removeObjects(ids) {
     scene.remove( meshes[id] );
     delete meshes[id];
   }
+}
+
+function getNextMeshId() {
+  for (var i = 0; i < meshBufferLength; i++) {
+    if (meshes[i] == undefined) return i;
+  }
+  throw "Could not find an empty index in the mesh buffer!";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
