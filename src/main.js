@@ -3,7 +3,8 @@ var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
 var floor, floorMaterial;
 var testMesh;
-var floorMesh, floorMaterial; // globally illuminated surface
+var meshBuffer = {};
+var intersectBuffer = {};
 var meshBufferSize = 1024; // max object count
 var intersectBufferWidth = 1024;
 var intersectBufferCollisions = 30; // max intersection count
@@ -21,58 +22,52 @@ var getNextMeshId = function() {
   throw "Could not find an empty index in the mesh buffer!";
 }
 
-var meshBufferVertexShader = 
-'attribute vec4 test_color;\n' +
+var meshBufVert = 
 'attribute vec4 id_shape_rot;\n' +
 'attribute vec4 pos_size;\n' +
-// 'attribute vec4 emissions;\n' +
-// 'varying vec4 v_id_shape_rot;\n' +
+'attribute vec4 emission;\n' +
+'varying vec4 v_id_shape_rot;\n' +
 'varying vec4 v_pos_size;\n' +
-// 'varying vec4 v_emissions;\n' +
+'varying vec4 v_emission;\n' +
+'varying float v_index;\n' +
 'void main() {\n' +
-'  gl_PointSize = 3.;\n' +
-// '  gl_Position = projectionMatrix * modelViewMatrix * vec4( 3. * id_shape_rot.x + 1.5, 0.5, 0., 1.);\n' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );' +
-'}\n';
+'  v_id_shape_rot = id_shape_rot;\n' +
+'  v_pos_size = pos_size;\n' +
+'  v_emission = emission;\n' +
+'  v_index = position.x;\n' +
+'  gl_PointSize = 1.;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+'}';
 
-var meshBufferFragmentShader = 
-// 'varying vec4 v_id_shape_rot;\n' +
+var meshBufFrag = 
 'varying vec4 v_pos_size;\n' +
-// 'varying vec4 v_emissions;\n' +
+'varying vec4 v_emission;\n' +
+'varying float v_index;\n' +
 'void main() {\n' +
-'  gl_FragColor = vec4(1., 0., 0., 1.);\n' +
-'}\n';
+'  if (v_index < 0.1) {\n' +
+'    gl_FragColor = v_id_shape_rot;\n' +
+'  } else if (v_index < 1.1) {\n' +
+'    gl_FragColor = v_pos_size;\n' +
+'  } else {\n' +
+'    gl_FragColor = v_emission;\n' +
+'  }\n' +
+'}';
 
-var testVertShader = 
-'attribute float size;' +
-'attribute vec3 customColor;' +
-'varying vec3 vColor;' +
+var isectBufVert = 
+'attribute vec4 id_shape_rot;' +
+'varying vec4 v_id_shape_rot;' +
 'void main() {' +
-'  vColor = customColor;' +
-'  gl_PointSize = size;' +
+'  v_id_shape_rot = id_shape_rot;' +
+'  gl_PointSize = 1.;' +
 '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );' +
 '}';
 
-var testFragShader = 
-'uniform vec3 color;' +
+var isectBufFrag = 
 'uniform sampler2D texture;' +
-'varying vec3 vColor;' +
+'varying vec4 v_id_shape_rot;' +
 'void main() {' +
-'  gl_FragColor = vec4( color * vColor, 1.0 );' +
+'  gl_FragColor = v_id_shape_rot;' +
 '}';
-// 'uniform vec2 resolution;' +
-// 'vec3 colorA = vec3(0.149,0.141,0.912);' +
-// 'vec3 colorB = vec3(1.000,0.833,0.224);' +
-// 'void main() {' +
-// '  gl_FragColor = vec4(1024./resolution.x, 0., 0., 1.);' +
-// '}';
-
-var sdfVertexShader = 
-'varying vec2 fUv;\n' +
-'void main() {\n' +
-'  fUv = uv;\n' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n' +
-'}\n';
 
 var sdfFragmentShader =
 '#define PI 3.14159265359\n' +
@@ -212,94 +207,35 @@ function init() {
   scene.add(floor);
   floor.position.set(0, 0, -1);
 
-  var positions = []
-  var test_color = [];
-  var id_shape_rot = [];
-  var pos_size = [];
-  var emissions = [];
-  for (var i = 0; i < meshBufferSize; i++) {
-    if (i in meshes) {
-      var m = meshes[i];
-      id_shape_rot.push(i, m.shape, m.rotation.z, 0);
-      pos_size.push(m.position.x, m.position.y, m.size.x, m.size.y);
-      var e = hexToRGBA(m.emission);
-      emissions.push(e.r, e.g, e.b, e.a);
-    } else {
-      id_shape_rot.push(0, 0, 0, 0);
-      pos_size.push(0, 0, 0, 0);
-      emissions.push(0, 0, 0, 0);
+  // meshBuffer.scene = new THREE.Scene();
+  // meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferSize * 3, 100, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
+
+  testMesh = setupBuffer(3, meshBufferSize, meshBufVert, meshBufFrag);
+  testMesh.geometry.addAttribute( 'id_shape_rot', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferSize * 4 ), 4 ) );
+  testMesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferSize * 4 ), 4 ) );
+  testMesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( 3 * meshBufferSize * 4 ), 4 ) );
+  scene.add(testMesh);
+  testMesh.position.set(0, 0, 1);
+};
+
+function setupBuffer(width, height, vertexShader, fragmentShader) {
+  var positions = new Float32Array( width * height * 3 );
+  for ( var j = 0; j < height; j++ ) {
+    for ( var i = 0; i < width; i++ ) {
+      positions[3 * (width*j+i)] = i; // x
+      positions[3 * (width*j+i) + 1] = j; // y
     }
-    var val = i / meshBufferSize;
-    test_color.push(val, val, val, 1.0);
-    positions.push(i, 0, 0, 0);
-  }
-
-  // console.log(positions);
-  // console.log(pos_size);
-  // console.log(emissions);
-
-/*  meshBuffer.geometry = new THREE.BufferGeometry();
-  meshBuffer.geometry.addAttribute( 'positions', new THREE.Float32BufferAttribute( positions, 4 ) );
-  meshBuffer.geometry.addAttribute( 'test_color', new THREE.Float32BufferAttribute( test_color, 4 ) );
-  meshBuffer.geometry.addAttribute( 'id_shape_rot', new THREE.Float32BufferAttribute( id_shape_rot, 4 ) );
-  meshBuffer.geometry.addAttribute( 'pos_size', new THREE.Float32BufferAttribute( pos_size, 4 ) );
-  meshBuffer.geometry.addAttribute( 'emissions', new THREE.Float32BufferAttribute( emissions, 4 ) );
-  meshBuffer.material = new THREE.ShaderMaterial( { 'vertexShader': meshBufferVertexShader, 'fragmentShader': meshBufferFragmentShader } );
-  meshBuffer.points = new THREE.Points( meshBuffer.geometry, meshBuffer.material );
-
-  meshBuffer.scene = new THREE.Scene();
-  meshBuffer.texture = new THREE.WebGLRenderTarget( meshBufferSize * 3, 100, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter});
-  meshBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 3, 100 ), meshBuffer.material );
-  meshBuffer.scene.add(meshBuffer.mesh);
-  meshBuffer.mesh.position.set(0, 0, 1);
-
-  meshBuffer.testmesh = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 3, 100 ), new THREE.MeshBasicMaterial({ color: "#ff0000" }) );
-  meshBuffer.scene.add(meshBuffer.testmesh);
-  meshBuffer.testmesh.position.set(0, 0, 1);*/
-
-  // Debug mesh buffer
-  // var sdfMaterial = new THREE.MeshBasicMaterial({map:meshBuffer.texture});
-  // sdfTest = new THREE.Mesh( new THREE.PlaneGeometry( meshBufferSize * 3, 100 ), sdfMaterial );
-  // scene.add(sdfTest);
-  // sdfTest.position.set(0, 0, 1);
-      // meshBuffer: { type: "t", value: meshBuffer.texture.texture },
-
-  var vertex = new THREE.Vector3();
-  var color = new THREE.Vector3();
-
-  var positions = new Float32Array( 100 * 3 );
-  var colors = new Float32Array( 100 * 3 );
-  var sizes = new Float32Array( 100 );
-  for ( var i = 0; i < 100; i ++ ) {
-    vertex.x = ( Math.random() * 2 - 1 ) * 100;
-    vertex.y = ( Math.random() * 2 - 1 ) * 100;
-    vertex.z = 0;
-    vertex.toArray( positions, i * 3 );
-    color.x = Math.random();
-    color.y = Math.random();
-    color.z = Math.random();
-    color.toArray( colors, i * 3 );
-    sizes[ i ] = 10;
   }
   var geometry = new THREE.BufferGeometry();
   geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
-  geometry.addAttribute( 'customColor', new THREE.BufferAttribute( colors, 3 ) );
-  geometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
-
-  // Debug SDF surface
   var material = new THREE.ShaderMaterial( {
-    uniforms: { 
-      color:      { value: new THREE.Color( 0xffffff ) },
-    },
-    vertexShader: testVertShader,
-    fragmentShader: testFragShader,
-    blending:       THREE.AdditiveBlending,
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
     depthTest:      false,
     transparent:    true
   } );
-  testMesh = new THREE.Points( geometry, material );
-  scene.add(testMesh);
-};
+  return new THREE.Points( geometry, material );
+}
 
 function animate(tick) {
   requestAnimationFrame( animate );
@@ -307,7 +243,6 @@ function animate(tick) {
     var m = meshes[id];
     if (!m.isStatic) {
       m.position.set(m.position.x + 2.0 * Math.random() - 1.0, m.position.y + 2.0 * Math.random() - 1.0, 0);
-      // console.log(m.position);
     }
   }
   if(!lastTick || tick - lastTick >= 500) {
@@ -328,11 +263,17 @@ function render() {
 }
 
 function updateTestPoints() {
-  var attributes = testMesh.geometry.attributes;
-  for (var i = 0; i < 100 * 3; i++) {
-    attributes.customColor.array[i] = Math.random();
+  var id_shape_rot = testMesh.geometry.attributes.id_shape_rot;
+  var pos_size = testMesh.geometry.attributes.pos_size;
+  var emission = testMesh.geometry.attributes.emission;
+  for (var i = 0; i < 3 * meshBufferSize * 4; i++) {
+    id_shape_rot.array[i] = Math.random();
+    pos_size.array[i] = Math.random();
+    emission.array[i] = Math.random();
   }
-  attributes.customColor.needsUpdate = true;
+  id_shape_rot.needsUpdate = true;
+  pos_size.needsUpdate = true;
+  emission.needsUpdate = true;
 }
 
 /*function updateMeshBuffer() {
