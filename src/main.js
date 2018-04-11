@@ -1,19 +1,186 @@
-var camera, scene, raycaster, renderer, stats;
-var gpuCompute, idShapeRotVariable, posSizeVariable, emissionVariable;
-var lastTick;
+var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
-var gpuComputeSize = 512;
+var floor, floorMaterial;
+var testMesh;
+var meshBuffer = {};
+var intersectBuffer = {};
+var meshBufferWidth = 3; // pixels per object
+var meshBufferHeight = 600; // max object count
 var showStats = true;
+var nextObjectId = 0;
 var frustumSize = 1000;
-// var stripes = new THREE.TextureLoader().load( "../src/img/stripes.png" );
-// var pattern = new THREE.TextureLoader().load( "../src/img/pattern.jpg" );
+var mouse = new THREE.Vector2();
+var lastTick = 0;
+var stripes = new THREE.TextureLoader().load( "../src/img/stripes.png" );
+var pattern = new THREE.TextureLoader().load( "../src/img/pattern.jpg" );
+
+var meshBufVert = 
+'attribute vec4 id_shape_rot;\n' +
+'attribute vec4 pos_size;\n' +
+'attribute vec4 emission;\n' +
+'varying vec4 v_id_shape_rot;\n' +
+'varying vec4 v_pos_size;\n' +
+'varying vec4 v_emission;\n' +
+'varying float v_index;\n' +
+'void main() {\n' +
+'  v_id_shape_rot = id_shape_rot;\n' +
+'  v_pos_size = pos_size;\n' +
+'  v_emission = emission;\n' +
+'  v_index = position.x;\n' +
+'  gl_PointSize = 1.;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+'}';
+
+var meshBufFrag = 
+'varying vec4 v_id_shape_rot;\n' +
+'varying vec4 v_pos_size;\n' +
+'varying vec4 v_emission;\n' +
+'varying float v_index;\n' +
+'void main() {\n' +
+'  if (v_index < 0.1) {\n' +
+'    gl_FragColor = v_id_shape_rot;\n' +
+'  } else if (v_index < 1.1) {\n' +
+'    gl_FragColor = v_pos_size;\n' +
+'  } else {\n' +
+'    gl_FragColor = v_emission;\n' +
+'  }\n' +
+'}';
+
+var isectBufVert = 
+'attribute vec2 reference;\n' +
+'varying vec2 v_uv;\n' +
+'varying vec2 v_position;\n' +
+'void main() {\n' +
+'  v_uv = reference;\n' +
+'  v_position = position.xy;\n' +
+'  gl_PointSize = 1.;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+'}';
+
+var isectBufFrag = 
+// 'attribute vec2 reference;\n' +
+'varying vec2 v_uv;\n' +
+'varying vec2 v_position;\n' +
+'uniform vec2 resolution;\n' +
+'uniform sampler2D meshBuffer;\n' +
+'void main() {\n' +
+// '  gl_FragColor = vec4(1., 0., 0., 1.);' +
+// '  gl_FragColor = texture2D(meshBuffer, vec2(0.51, 1.));' +
+'  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
+// '  gl_FragColor = texture2D(meshBuffer, v_uv);' +
+'}';
+
+var sdfFragmentShader =
+'#define PI 3.14159265359\n' +
+'#define EPS 1.0\n' +
+'uniform sampler2D meshBuffer;\n' +
+'uniform vec2 resolution;\n' +
+'varying vec2 fUv;\n' +
+'mat2 rotate(float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  return mat2(c,-s,\n' +
+'              s,c);\n' +
+'}\n' +
+'float box(vec2 pos, vec2 size, float angle) {\n' +
+'  vec2 p = pos + resolution.xy;' +
+'  vec2 v = gl_FragCoord.xy - p;\n' +
+'  v = rotate( angle ) * v;\n' +
+'  v = v + p;\n' +
+'  vec2 b = size / 2.;\n' +
+'  v = max( (p - b) - v,  v - (p + b) );\n' +
+'  return max(v.x, v.y);' +
+'}\n' +
+'float circle(vec2 pos, float size) {\n' +
+'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
+'}\n' +
+'void main() {' +
+// '  gl_FragColor = texture2D(meshBuffer, vec2(fUv.x, 0.));' +
+'  if (gl_FragCoord.x < 1024. && gl_FragCoord.y < 100.) {' +
+'    gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
+'  } else {' +
+'    gl_FragColor = vec4(0.);' +
+'  }' +
+'}';
+
+var sdfFragmentShaderPart1 =
+'#define PI 3.14159265359\n' +
+'#define EPS 1.0\n' +
+'uniform vec2 resolution;\n' +
+'mat2 rotate(float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  return mat2(c,-s,\n' +
+'              s,c);\n' +
+'}\n' +
+'float box(vec2 pos, vec2 size, float angle) {\n' +
+'  vec2 p = pos + resolution.xy;' +
+'  vec2 v = gl_FragCoord.xy - p;\n' +
+'  v = rotate( angle ) * v;\n' +
+'  v = v + p;\n' +
+'  vec2 b = size / 2.;\n' +
+'  v = max( (p - b) - v,  v - (p + b) );\n' +
+// '  v -= resolution.xy;\n' +
+// '  return min(0., max(v.x, v.y));\n' +
+'  return max(v.x, v.y);' +
+'}\n' +
+'float circle(vec2 pos, float size) {\n' +
+'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
+'}\n' +
+'void main() {';
+
+var sdfCircle = function(position, size, color) { return '' +
+'  if (circle(vec2(' + glslVector2(position) + '), ' + glslFloat(size) + ') < EPS) {' +
+'    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
+}
+
+var sdfBox = function(position, size, angle, color) { return '' +
+'  if (box(vec2(' + glslVector2(position) + '), vec2(' + glslVector2(size) + '), ' + glslFloat(angle) + ') < EPS) {' +
+'    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
+}
+
+function makeSdfFragmentShader() {
+  var sdfFragmentShaderPart2 = '';
+  var prefix = '';
+  var empty = true;
+  for (var id in meshes) {
+    var m = meshes[id]
+    if (m == undefined) continue;
+    if (m.shape === 'Box') {
+      // console.log(m);
+      sdfFragmentShaderPart2 += prefix + sdfBox(m.position, new THREE.Vector2(m.geometry.parameters.width, m.geometry.parameters.height), 
+        m.rotation.z, m.material.color);
+      prefix = ' else ';
+      empty = false;
+    }
+  }
+  if (empty) {
+    return sdfFragmentShaderPart1 + ' gl_FragColor = vec4(0., 0., 0., 0.); }';
+  } else {
+    return sdfFragmentShaderPart1 + sdfFragmentShaderPart2 + ' else { gl_FragColor = vec4(0., 0., 0., 0.); } }';
+  }
+}
+
+function glslFloat(val) {
+  if (val % 1 == 0)
+    return '' + val + '.';
+  else
+    return '' + val;
+}
+
+function glslVector2(vec) {
+  return glslFloat(vec.x) + ',' + glslFloat(vec.y);
+}
+
+function glslColor(rgb, a) {
+  return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Main Program
 ////////////////////////////////////////////////////////////////////////////////
 
-if (!Detector.webgl) Detector.addGetWebGLMessage();
 init();
 animate();
 
@@ -27,94 +194,63 @@ function init() {
   renderer = new THREE.WebGLRenderer();
   container.appendChild(renderer.domElement);
   renderer.setPixelRatio( window.devicePixelRatio );
+  // console.log(window.devicePixelRatio);
   renderer.setSize( container.offsetWidth, container.offsetHeight );
   if (showStats) {
     stats = new Stats();
     container.appendChild( stats.dom );
   }
+
   addObjects(defaultObjectParams());
-}
 
-function initComputeRenderer() {
-  gpuCompute = new GPUComputationRenderer( meshBufferSize, meshBufferSize, renderer );
+  floorMaterial = new THREE.ShaderMaterial( {
+    fragmentShader: 'void main() { gl_FragColor = vec4(0.5, 0.1, 0.2, 0.1); }',
+  } );
+  floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMaterial );
+  scene.add(floor);
+  floor.position.set(0, 0, -1);
 
-  var idShapeRot = gpuCompute.createTexture();
-  var posSize = gpuCompute.createTexture();
-  var emission = gpuCompute.createTexture();
-  fillIdShapeRotTexture( idShapeRot );
-  fillPosSizeTexture( posSize );
-  fillEmissionTexture( emission );
+  meshBuffer.camera = new THREE.OrthographicCamera( 0, meshBufferWidth, meshBufferHeight, 0, -1, 1 );
+  meshBuffer.scene = new THREE.Scene();
+  meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferWidth, meshBufferHeight,
+    { format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
 
-  idShapeRotVariable = gpuCompute.addVariable( "textureIdShapeRot", document.getElementById( 'fragmentShaderVelocity' ).textContent, idShapeRot );
-  posSizeVariable = gpuCompute.addVariable( "texturePosSize", document.getElementById( 'fragmentShaderPosition' ).textContent, posSizeVariable );
-  emissionVariable = gpuCompute.addVariable( "textureEmission", document.getElementById( 'fragmentShaderPosition' ).textContent, emissionVariable );
+/*  meshBuffer.mesh2 = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), 
+    new THREE.MeshBasicMaterial( {map:stripes} ) );
+  meshBuffer.scene.add(meshBuffer.mesh2);*/
 
+  meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
+  meshBuffer.mesh.geometry.addAttribute( 'id_shape_rot', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  meshBuffer.mesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  meshBuffer.mesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  meshBuffer.scene.add(meshBuffer.mesh);
+  // scene.add(meshBuffer.mesh);
 
-  gpuCompute.setVariableDependencies( velocityVariable, [ positionVariable, velocityVariable ] );
-  gpuCompute.setVariableDependencies( positionVariable, [ positionVariable, velocityVariable ] );
+  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, isectBufVert, isectBufFrag);
+  intersectBuffer.mesh.material.uniforms = {
+    meshBuffer: { type: "t", value: meshBuffer.target.texture },
+    resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
+  };
+  scene.add(intersectBuffer.mesh);
+};
 
-  positionUniforms = positionVariable.material.uniforms;
-  velocityUniforms = velocityVariable.material.uniforms;
-
-  positionUniforms.time = { value: 0.0 };
-  positionUniforms.delta = { value: 0.0 };
-  velocityUniforms.time = { value: 1.0 };
-  velocityUniforms.delta = { value: 0.0 };
-  velocityUniforms.testing = { value: 1.0 };
-  velocityUniforms.seperationDistance = { value: 1.0 };
-  velocityUniforms.alignmentDistance = { value: 1.0 };
-  velocityUniforms.cohesionDistance = { value: 1.0 };
-  velocityUniforms.freedomFactor = { value: 1.0 };
-  velocityUniforms.predator = { value: new THREE.Vector3() };
-  velocityVariable.material.defines.BOUNDS = BOUNDS.toFixed( 2 );
-
-  velocityVariable.wrapS = THREE.RepeatWrapping;
-  velocityVariable.wrapT = THREE.RepeatWrapping;
-  positionVariable.wrapS = THREE.RepeatWrapping;
-  positionVariable.wrapT = THREE.RepeatWrapping;
-
-  var error = gpuCompute.init();
-  if ( error !== null ) {
-      console.error( error );
+function setupBuffer(width, height, vertexShader, fragmentShader) {
+  var positions = new Float32Array( width * height * 3 );
+  for ( var j = 0; j < height; j++ ) {
+    for ( var i = 0; i < width; i++ ) {
+      positions[3 * (width*j+i)] = i; // x
+      positions[3 * (width*j+i) + 1] = j; // y
+    }
   }
-}
-
-function fillPositionTexture( texture ) {
-
-var theArray = texture.image.data;
-
-for ( var k = 0, kl = theArray.length; k < kl; k += 4 ) {
-
-var x = Math.random() * BOUNDS - BOUNDS_HALF;
-var y = Math.random() * BOUNDS - BOUNDS_HALF;
-var z = Math.random() * BOUNDS - BOUNDS_HALF;
-
-theArray[ k + 0 ] = x;
-theArray[ k + 1 ] = y;
-theArray[ k + 2 ] = z;
-theArray[ k + 3 ] = 1;
-
-}
-
-}
-
-function fillVelocityTexture( texture ) {
-
-var theArray = texture.image.data;
-
-for ( var k = 0, kl = theArray.length; k < kl; k += 4 ) {
-
-var x = Math.random() - 0.5;
-var y = Math.random() - 0.5;
-var z = Math.random() - 0.5;
-
-theArray[ k + 0 ] = x * 10;
-theArray[ k + 1 ] = y * 10;
-theArray[ k + 2 ] = z * 10;
-theArray[ k + 3 ] = 1;
-
-}
-
+  var geometry = new THREE.BufferGeometry();
+  geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+  var material = new THREE.ShaderMaterial( {
+    vertexShader:    vertexShader,
+    fragmentShader:  fragmentShader,
+    depthTest:       false,
+    transparent:     true,
+  } );
+  return new THREE.Points( geometry, material );
 }
 
 function animate(tick) {
@@ -127,6 +263,7 @@ function animate(tick) {
   }
   if(!lastTick || tick - lastTick >= 500) {
     lastTick = tick;
+    updateTestPoints();
   }
   render();
 
@@ -135,7 +272,48 @@ function animate(tick) {
   }
 }
 function render() {
+  renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
   renderer.render( scene, camera );
+  // sdfMaterial.fragmentShader = makeSdfFragmentShader();
+  // sdfMaterial.needsUpdate = true;
+}
+
+function updateTestPoints() {
+  var id_shape_rot = meshBuffer.mesh.geometry.attributes.id_shape_rot;
+  var pos_size = meshBuffer.mesh.geometry.attributes.pos_size;
+  var emission = meshBuffer.mesh.geometry.attributes.emission;
+  for (var i = 0; i < meshBufferWidth * meshBufferHeight * 4; i++) {
+    if (i % 4 == 0) {               // red
+      id_shape_rot.array[i] = 1;
+      pos_size.array[i] = 0;
+      emission.array[i] = 0;
+    } else if (i % 4 == 1) {        // green
+      id_shape_rot.array[i] = 0;
+      pos_size.array[i] = 1;
+      emission.array[i] = 0;
+    } else if (i % 4 == 2) {        // blue
+      id_shape_rot.array[i] = 0;
+      pos_size.array[i] = 0;
+      emission.array[i] = 1;
+    } else {                        // alpha
+      id_shape_rot.array[i] = 1;
+      pos_size.array[i] = 1;
+      emission.array[i] = 1;
+    }
+/*    id_shape_rot.array[i] = Math.random();
+    pos_size.array[i] = Math.random();
+    emission.array[i] = Math.random();*/
+  }
+  id_shape_rot.needsUpdate = true;
+  pos_size.needsUpdate = true;
+  emission.needsUpdate = true;
+
+  // meshBuffer.target.texture.needsUpdate = true;
+  // intersectBuffer.mesh.material.uniforms.meshBuffer.value.needsUpdate = true;
+}
+
+function saveMeshBuffer() {
+  var dataURL = renderer.domElement.toDataURL();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,20 +357,27 @@ function removeObjects(ids) {
 }
 
 function getNextMeshId() {
-  for (var i = 0; i < 1024; i++) {
+  for (var i = 0; i < meshBufferHeight; i++) {
     if (meshes[i] == undefined) return i;
   }
   throw "Could not find an empty index in the mesh buffer!";
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Object Params
+////////////////////////////////////////////////////////////////////////////////
+
 function BoxParam(params) {
+  // this.id = nextObjectId++;
   this.position = params['position'];
   this.size = params['size'];
   this.rotation = params['rotation'];
   this.color = params['color'];
   if ( 'emission' in params ) {
+    // this.isEmitter = true;
     this.emission = params['emission'];
   } else {
+    // this.isEmitter = false;
     this.emission = "#0000";
   }
   if ( 'isStatic' in params ) {
@@ -206,6 +391,7 @@ function BoxParam(params) {
 }
 
 function CircleParam(params) {
+  // this.id = nextObjectId++;
   this.position = params['position'];
   this.radius = params['radius'];
   this.color = params['color'];
