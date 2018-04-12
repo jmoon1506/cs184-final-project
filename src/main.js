@@ -1,30 +1,33 @@
 var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
-var floor, floorMaterial;
-var testMesh;
 var meshBuffer = {};
 var intersectBuffer = {};
-var meshBufferWidth = 3; // pixels per object
-var meshBufferHeight = 600; // max object count
 var showStats = true;
-var nextObjectId = 0;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
 var lastTick = 0;
-var stripes = new THREE.TextureLoader().load( "../src/img/stripes.png" );
-var pattern = new THREE.TextureLoader().load( "../src/img/pattern.jpg" );
+// var stripes = new THREE.TextureLoader().load( "../src/img/stripes.png" );
+// var pattern = new THREE.TextureLoader().load( "../src/img/pattern.jpg" );
+
+var sceneWidth = 800;
+var sceneHeight = 600;
+var meshBufferWidth = 3;     // data pixels per object
+var meshBufferHeight = 300;  // max object count
+var isectBufferWidth = 1024; // rays per angle
+var isectDepth = 30;         // isects per ray
+var isectBufferHeight = 180 * isectDepth;
 
 var meshBufVert = 
-'attribute vec4 id_shape_rot;\n' +
+'attribute vec4 shape_rot;\n' +
 'attribute vec4 pos_size;\n' +
 'attribute vec4 emission;\n' +
-'varying vec4 v_id_shape_rot;\n' +
+'varying vec4 v_shape_rot;\n' +
 'varying vec4 v_pos_size;\n' +
 'varying vec4 v_emission;\n' +
 'varying float v_index;\n' +
 'void main() {\n' +
-'  v_id_shape_rot = id_shape_rot;\n' +
+'  v_shape_rot = shape_rot;\n' +
 '  v_pos_size = pos_size;\n' +
 '  v_emission = emission;\n' +
 '  v_index = position.x;\n' +
@@ -33,13 +36,13 @@ var meshBufVert =
 '}';
 
 var meshBufFrag = 
-'varying vec4 v_id_shape_rot;\n' +
+'varying vec4 v_shape_rot;\n' +
 'varying vec4 v_pos_size;\n' +
 'varying vec4 v_emission;\n' +
 'varying float v_index;\n' +
 'void main() {\n' +
 '  if (v_index < 0.1) {\n' +
-'    gl_FragColor = v_id_shape_rot;\n' +
+'    gl_FragColor = v_shape_rot;\n' +
 '  } else if (v_index < 1.1) {\n' +
 '    gl_FragColor = v_pos_size;\n' +
 '  } else {\n' +
@@ -203,24 +206,13 @@ function init() {
 
   addObjects(defaultObjectParams());
 
-  floorMaterial = new THREE.ShaderMaterial( {
-    fragmentShader: 'void main() { gl_FragColor = vec4(0.5, 0.1, 0.2, 0.1); }',
-  } );
-  floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMaterial );
-  scene.add(floor);
-  floor.position.set(0, 0, -1);
-
   meshBuffer.camera = new THREE.OrthographicCamera( 0, meshBufferWidth, meshBufferHeight, 0, -1, 1 );
   meshBuffer.scene = new THREE.Scene();
   meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferWidth, meshBufferHeight,
     { format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
 
-/*  meshBuffer.mesh2 = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), 
-    new THREE.MeshBasicMaterial( {map:stripes} ) );
-  meshBuffer.scene.add(meshBuffer.mesh2);*/
-
   meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
-  meshBuffer.mesh.geometry.addAttribute( 'id_shape_rot', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  meshBuffer.mesh.geometry.addAttribute( 'shape_rot', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
   meshBuffer.mesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
   meshBuffer.mesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
   meshBuffer.scene.add(meshBuffer.mesh);
@@ -263,7 +255,8 @@ function animate(tick) {
   }
   if(!lastTick || tick - lastTick >= 500) {
     lastTick = tick;
-    updateTestPoints();
+    // updateMeshBuffer();
+    // updateTestPoints();
   }
   render();
 
@@ -274,46 +267,80 @@ function animate(tick) {
 function render() {
   renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
   renderer.render( scene, camera );
-  // sdfMaterial.fragmentShader = makeSdfFragmentShader();
-  // sdfMaterial.needsUpdate = true;
+}
+
+function updateMeshBuffer() {
+  var shape_rot = meshBuffer.mesh.geometry.attributes.shape_rot;
+  var pos_size = meshBuffer.mesh.geometry.attributes.pos_size;
+  var emission = meshBuffer.mesh.geometry.attributes.emission;
+  shape_rot.array.fill(0);
+  pos_size.array.fill(0);
+  emission.array.fill(0);
+
+  for (var j in meshes) {
+    var m = meshes[j];
+    if (m == undefined) continue;
+    var h = 4 * meshBufferWidth * j;
+    shape_rot.array[h] = m.shape;
+    shape_rot.array[h+1] = m.rotation.z;
+    pos_size.array[h+4] = m.position.x;
+    pos_size.array[h+5] = m.position.y;
+    pos_size.array[h+6] = m.size.x;
+    pos_size.array[h+7] = m.size.y;
+    emission.array[h+8] = emission.r;
+    emission.array[h+9] = emission.g;
+    emission.array[h+10] = emission.b;
+    emission.array[h+11] = emission.a;
+/*    for (var i = 0; i < meshBufferWidth; i++) {
+      shape_rot.array[4*i+h] = m.shape;
+      shape_rot.array[4*i+h+1] = m.rotation.z;
+      pos_size.array[4*i+h] = m.position.x;
+      pos_size.array[4*i+h+1] = m.position.y;
+      pos_size.array[4*i+h+2] = m.size.x;
+      pos_size.array[4*i+h+3] = m.size.y;
+      emission.array[4*i+h] = emission.r;
+      emission.array[4*i+h+1] = emission.g;
+      emission.array[4*i+h+2] = emission.b;
+      emission.array[4*i+h+3] = emission.a;
+    }*/
+  }
+  shape_rot.needsUpdate = true;
+  pos_size.needsUpdate = true;
+  emission.needsUpdate = true;
 }
 
 function updateTestPoints() {
-  var id_shape_rot = meshBuffer.mesh.geometry.attributes.id_shape_rot;
+  var shape_rot = meshBuffer.mesh.geometry.attributes.shape_rot;
   var pos_size = meshBuffer.mesh.geometry.attributes.pos_size;
   var emission = meshBuffer.mesh.geometry.attributes.emission;
   for (var i = 0; i < meshBufferWidth * meshBufferHeight * 4; i++) {
     if (i % 4 == 0) {               // red
-      id_shape_rot.array[i] = 1;
+      shape_rot.array[i] = 1;
       pos_size.array[i] = 0;
       emission.array[i] = 0;
     } else if (i % 4 == 1) {        // green
-      id_shape_rot.array[i] = 0;
+      shape_rot.array[i] = 0;
       pos_size.array[i] = 1;
       emission.array[i] = 0;
     } else if (i % 4 == 2) {        // blue
-      id_shape_rot.array[i] = 0;
+      shape_rot.array[i] = 0;
       pos_size.array[i] = 0;
       emission.array[i] = 1;
     } else {                        // alpha
-      id_shape_rot.array[i] = 1;
+      shape_rot.array[i] = 1;
       pos_size.array[i] = 1;
       emission.array[i] = 1;
     }
-/*    id_shape_rot.array[i] = Math.random();
+/*    shape_rot.array[i] = Math.random();
     pos_size.array[i] = Math.random();
     emission.array[i] = Math.random();*/
   }
-  id_shape_rot.needsUpdate = true;
+  shape_rot.needsUpdate = true;
   pos_size.needsUpdate = true;
   emission.needsUpdate = true;
 
   // meshBuffer.target.texture.needsUpdate = true;
   // intersectBuffer.mesh.material.uniforms.meshBuffer.value.needsUpdate = true;
-}
-
-function saveMeshBuffer() {
-  var dataURL = renderer.domElement.toDataURL();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,8 +357,8 @@ function addObjects(objectParams) {
       mesh = new THREE.Mesh( new THREE.PlaneGeometry( o.size.x, o.size.y ), material );
       mesh.size = o.size;
       mesh.rotation.z = o.rotation;
-      mesh.emission = o.emission;
-      mesh.shape = 0;
+      mesh.emission = hexToRGBA(o.emission);
+      mesh.shape = 1;
     } else if (o instanceof CircleParam) {
 
     }
@@ -357,7 +384,7 @@ function removeObjects(ids) {
 }
 
 function getNextMeshId() {
-  for (var i = 0; i < meshBufferHeight; i++) {
+  for (var i = 1; i < meshBufferHeight; i++) {
     if (meshes[i] == undefined) return i;
   }
   throw "Could not find an empty index in the mesh buffer!";
@@ -368,16 +395,13 @@ function getNextMeshId() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function BoxParam(params) {
-  // this.id = nextObjectId++;
   this.position = params['position'];
   this.size = params['size'];
   this.rotation = params['rotation'];
   this.color = params['color'];
   if ( 'emission' in params ) {
-    // this.isEmitter = true;
     this.emission = params['emission'];
   } else {
-    // this.isEmitter = false;
     this.emission = "#0000";
   }
   if ( 'isStatic' in params ) {
@@ -391,7 +415,6 @@ function BoxParam(params) {
 }
 
 function CircleParam(params) {
-  // this.id = nextObjectId++;
   this.position = params['position'];
   this.radius = params['radius'];
   this.color = params['color'];
@@ -434,9 +457,9 @@ function hexToRGBA(hex) {
   hex = hex.replace(shorthandRegex, function(m, r, g, b, a) { return r + r + g + g + b + b + a + a; });
   var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16),
-      a: parseInt(result[4], 16)
+      r: parseInt(result[1], 16) / 255,
+      g: parseInt(result[2], 16) / 255,
+      b: parseInt(result[3], 16) / 255,
+      a: parseInt(result[4], 16) / 255
   } : null;
 }
