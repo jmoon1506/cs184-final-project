@@ -30,12 +30,15 @@ var meshBufVert =
 '  if (position.x < 0.6) {\n' +
 '    float shape = meshData.x / SHAPE_TYPES;\n' +
 '    float rotation = meshData.y - TWO_PI * floor(meshData.y / TWO_PI);\n' +
-'    v_color = vec4(shape, rotation / TWO_PI, 0.0, 0.0);\n' +
+'    v_color = vec4(1.,0.,0.,1.);\n' +
+// '    v_color = vec4(shape, rotation / TWO_PI, 0.0, 0.0);\n' +
 '  } else if (position.x < 1.6) {\n' +
 '    vec4 dim = SCENE_SIZE.xyxy;' +
-'    v_color = (meshData + dim / 2.0) / dim;\n' +
+'    v_color = vec4(0.,1.,0.,1.);\n' +
+// '    v_color = (meshData + dim / 2.0) / dim;\n' +
 '  } else {\n' +
-'    v_color = meshData;\n' +
+'    v_color = vec4(0.,0.,1.,1.);\n' +
+// '    v_color = meshData;\n' +
 '  }\n' +
 '  gl_PointSize = 1.0;\n' +
 '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position.xy, 0.0, 1.0 );\n' +
@@ -47,15 +50,8 @@ var meshBufFrag =
 '  gl_FragColor = v_color;\n' +
 '}';
 
-var meshBufTestFrag =
-'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
-'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
-'#define SHAPE_TYPES 2.0\n' +
-'#define TWO_PI 6.28318530718\n' +
-'#define SCENE_SIZE vec2(' + sceneWidth + '.,' + sceneHeight +'.)\n' +
-'#define EPS 1.0\n' +
+var sdfFragmentShaderPart1 =
 'uniform vec2 resolution;\n' +
-'uniform sampler2D meshBuffer;\n' +
 'mat2 rotate(float angle) {\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
@@ -63,7 +59,7 @@ var meshBufTestFrag =
 '              s,c);\n' +
 '}\n' +
 'float box(vec2 pos, vec2 size, float angle) {\n' +
-'  vec2 p = pos + resolution.xy;\n' +
+'  vec2 p = pos + resolution.xy;' +
 '  vec2 v = gl_FragCoord.xy - p;\n' +
 '  v = rotate( angle ) * v;\n' +
 '  v = v + p;\n' +
@@ -71,7 +67,18 @@ var meshBufTestFrag =
 '  v = max( (p - b) - v,  v - (p + b) );\n' +
 '  return max(v.x, v.y);' +
 '}\n' +
-'void main() {\n' +
+'float circle(vec2 pos, float size) {\n' +
+'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
+'}\n' +
+'void main() {';
+
+var meshBufTestFrag =
+'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
+'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
+'#define SHAPE_TYPES 2.0\n' +
+'#define TWO_PI 6.28318530718\n' +
+'#define SCENE_SIZE vec2(' + sceneWidth + '.,' + sceneHeight +'.)\n' +
+sdfFragmentShaderPart1 +
 '  gl_FragColor = vec4(0.0);\n' +
 '  float col0 = 0.33;\n' +
 '  float col1 = 0.66;\n' +
@@ -87,7 +94,7 @@ var meshBufTestFrag =
 '    vec4 dim = SCENE_SIZE.xyxy;' +
 '    vec4 pos_size = (pix1 - 0.5) * dim;\n' +
 '    if (shape < 1.1) {\n' +
-'      if (box(pos_size.xy, pos_size.zw, rotation) < EPS) {\n' +
+'      if (box(pos_size.xy, pos_size.zw, rotation) < 1.0) {\n' +
 '        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
 '        break;\n' +
 '      }\n' +
@@ -111,39 +118,15 @@ var isectBufFrag =
 '  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
 '}';
 
-var sdfFragmentShaderPart1 =
-'#define PI 3.14159265359\n' +
-'#define EPS 1.0\n' +
-'uniform vec2 resolution;\n' +
-'mat2 rotate(float angle) {\n' +
-'  float c = cos(angle);\n' +
-'  float s = sin(angle);\n' +
-'  return mat2(c,-s,\n' +
-'              s,c);\n' +
-'}\n' +
-'float box(vec2 pos, vec2 size, float angle) {\n' +
-'  vec2 p = pos + resolution.xy;' +
-'  vec2 v = gl_FragCoord.xy - p;\n' +
-'  v = rotate( angle ) * v;\n' +
-'  v = v + p;\n' +
-'  vec2 b = size / 2.;\n' +
-'  v = max( (p - b) - v,  v - (p + b) );\n' +
-// '  v -= resolution.xy;\n' +
-// '  return min(0., max(v.x, v.y));\n' +
-'  return max(v.x, v.y);' +
-'}\n' +
-'float circle(vec2 pos, float size) {\n' +
-'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
-'}\n' +
-'void main() {';
+
 
 var sdfCircle = function(position, size, color) { return '' +
-'  if (circle(vec2(' + glslVector2(position) + '), ' + glslFloat(size) + ') < EPS) {' +
+'  if (circle(vec2(' + glslVector2(position) + '), ' + glslFloat(size) + ') < 1.0) {' +
 '    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
 }
 
 var sdfBox = function(position, size, angle, color) { return '' +
-'  if (box(vec2(' + glslVector2(position) + '), vec2(' + glslVector2(size) + '), ' + glslFloat(angle) + ') < EPS) {' +
+'  if (box(vec2(' + glslVector2(position) + '), vec2(' + glslVector2(size) + '), ' + glslFloat(angle) + ') < 1.0) {' +
 '    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
 }
 
@@ -222,25 +205,25 @@ function init() {
   // scene.add(meshBuffer.mesh);
 
 
-/*  testMat = new THREE.ShaderMaterial( {
+  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
       meshBuffer: { type: "t", value: meshBuffer.target.texture },
       resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } 
     },
-    fragmentShader: meshBufTestFrag,
-    // fragmentShader: makeSdfFragmentShader(),
+    // fragmentShader: meshBufTestFrag,
+    fragmentShader: makeSdfFragmentShader(),
     transparent: true,
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);*/
+  testMesh.position.set(0, 0, 1);
 
-  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, isectBufVert, isectBufFrag);
+/*  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, isectBufVert, isectBufFrag);
   intersectBuffer.mesh.material.uniforms = {
     meshBuffer: { type: "t", value: meshBuffer.target.texture },
     resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
   };
-  scene.add(intersectBuffer.mesh);
+  scene.add(intersectBuffer.mesh);*/
 
   Engine.run(engine);
 };
@@ -278,7 +261,6 @@ function animate(tick) {
   if(!lastTick || tick - lastTick >= 500) {
     lastTick = tick;
     updateMeshBuffer();
-    // updateTestPoints();
   }
   render();
 
@@ -289,8 +271,8 @@ function animate(tick) {
 function render() {
   renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
   renderer.render( scene, camera );
-  // testMat.fragmentShader = makeSdfFragmentShader();
-  // testMat.needsUpdate = true;
+  testMat.fragmentShader = makeSdfFragmentShader();
+  testMat.needsUpdate = true;
 }
 
 function updateMeshBuffer() {
