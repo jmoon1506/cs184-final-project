@@ -16,6 +16,8 @@ var isectBufferWidth = 1024; // rays per angle
 var isectDepth = 30;         // isects per ray
 var isectBufferHeight = 180 * isectDepth;
 
+var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies;
+
 var testMesh, testMat;
 
 var meshBufVert = 
@@ -42,11 +44,6 @@ var meshBufVert =
 var meshBufFrag = 
 'varying vec4 v_color;\n' +
 'void main() {\n' +
-'  if (v_index < 0.1) {\n' +
-// '    gl_FragColor = vec4(1., 0., 0., 1.);' +
-'    float shape = v_meshData.x / SHAPE_TYPES;\n' +
-'    float rotation = v_meshData.y - TWO_PI * floor(v_meshData.y / TWO_PI);\n' +
-'    gl_FragColor = vec4(shape, rotation / TWO_PI, 0.0, 1.0);\n' +
 '  gl_FragColor = v_color;\n' +
 '}';
 
@@ -209,6 +206,8 @@ function init() {
     stats = new Stats();
     container.appendChild( stats.dom );
   }
+  engine = Engine.create({render: {visible: false}});
+  engine.world.gravity.y = -1;
 
   addObjects(defaultObjectParams());
 
@@ -242,6 +241,8 @@ function init() {
     resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
   };
   scene.add(intersectBuffer.mesh);
+
+  Engine.run(engine);
 };
 
 function setupBuffer(width, height, vertexShader, fragmentShader) {
@@ -265,10 +266,13 @@ function setupBuffer(width, height, vertexShader, fragmentShader) {
 
 function animate(tick) {
   requestAnimationFrame( animate );
-  for (var id in meshes) {
-    var m = meshes[id];
+  for (var j = 0; j < engine.world.bodies.length; j++) {
+    var body = engine.world.bodies[j];
+    var position = body.position;
+    var m = meshes[body.meshId];
     if (!m.isStatic) {
-      m.position.set(m.position.x + 2.0 * Math.random() - 1.0, m.position.y + 2.0 * Math.random() - 1.0, 0);
+      m.rotation.z = body.angle;
+      m.position.set(position.x, position.y, 0);
     }
   }
   if(!lastTick || tick - lastTick >= 500) {
@@ -319,6 +323,7 @@ function updateMeshBuffer() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function addObjects(objectParams) {
+  var physicsBodies = [];
   for (var i = 0; i < objectParams.length; i++) {
     var o = objectParams[i];
     var meshId = getNextMeshId();
@@ -330,6 +335,25 @@ function addObjects(objectParams) {
       mesh.rotation.z = o.rotation;
       mesh.emission = hexToRGBA(o.emission);
       mesh.shape = 1;
+      var body = Bodies.rectangle(
+          o.position.x,
+          o.position.y,
+          o.size.x,
+          o.size.y,
+          {
+            isStatic: o.isStatic,
+            meshId: meshId,
+            friction: 0.00001,
+            restitution: 0.5,
+            density: 0.001
+          }
+        );
+      Matter.Body.rotate(body, o.rotation);
+      // body.angle = o.rotation;
+
+      physicsBodies.push(
+        body
+      );
     } else if (o instanceof CircleParam) {
 
     }
@@ -339,6 +363,7 @@ function addObjects(objectParams) {
     mesh.meshId = meshId;
     meshes[mesh.meshId] = mesh;
   }
+  World.add(engine.world, physicsBodies);
 }
 
 function removeObjects(ids) {
