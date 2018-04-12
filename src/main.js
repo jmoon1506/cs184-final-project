@@ -376,7 +376,24 @@ function addObjects(objectParams) {
       );
 
     } else if (o instanceof CircleParam) {
+      mesh = new THREE.Mesh(new THREE.CircleGeometry(o.radius, 64), material); // set #segments to 64 just by default
+      mesh.emission = o.emission;
+      mesh.shape = 0; // not sure if this is necessary, couldn't find specific documentation
+      var body = Bodies.circle(
+          o.position.x,
+          o.position.y,
+          o.radius,
+          {
+            isStatic: o.isStatic, //all mirroring case for Box
+            meshId: meshId,
+            friction: 0.00001,
+            restitution: 0.5,
+            density: 0.001
+          },
+          64 // set # sides to match # segments from above
+      );
 
+      physicsBodies.push(body);
       // TODO: add physics bodies here when we start rendering circles
     }
     scene.add(mesh);
