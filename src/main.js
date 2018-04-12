@@ -10,76 +10,56 @@ var lastTick = 0;
 // var stripes = new THREE.TextureLoader().load( "../src/img/stripes.png" );
 // var pattern = new THREE.TextureLoader().load( "../src/img/pattern.jpg" );
 
-var sceneWidth = 800;
-var sceneHeight = 600;
+var sceneWidth = 1024;
+var sceneHeight = 800;
 var meshBufferWidth = 3;     // data pixels per object
 var meshBufferHeight = 300;  // max object count
 var isectBufferWidth = 1024; // rays per angle
 var isectDepth = 30;         // isects per ray
 var isectBufferHeight = 180 * isectDepth;
 
+var testMesh, testMat;
+
 var meshBufVert = 
-'attribute vec4 shape_rot;\n' +
-'attribute vec4 pos_size;\n' +
-'attribute vec4 emission;\n' +
-'varying vec4 v_shape_rot;\n' +
-'varying vec4 v_pos_size;\n' +
-'varying vec4 v_emission;\n' +
+'attribute vec4 meshData;\n' +
+'varying vec4 v_meshData;\n' +
 'varying float v_index;\n' +
 'void main() {\n' +
-'  v_shape_rot = shape_rot;\n' +
-'  v_pos_size = pos_size;\n' +
-'  v_emission = emission;\n' +
+'  v_meshData = meshData;\n' +
 '  v_index = position.x;\n' +
-'  gl_PointSize = 1.;\n' +
+'  gl_PointSize = 1.0;\n' +
 '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
 '}';
 
 var meshBufFrag = 
-'varying vec4 v_shape_rot;\n' +
-'varying vec4 v_pos_size;\n' +
-'varying vec4 v_emission;\n' +
+'#define SHAPE_TYPES 2.0\n' +
+'#define TWO_PI 6.28318530718\n' +
+'#define SCENE_SIZE vec2(' + sceneWidth + ',' + sceneHeight +')\n' +
+'varying vec4 v_meshData;\n' +
 'varying float v_index;\n' +
 'void main() {\n' +
 '  if (v_index < 0.1) {\n' +
-'    gl_FragColor = v_shape_rot;\n' +
+// '    gl_FragColor = vec4(1., 0., 0., 1.);' +
+'    float shape = v_meshData.x / SHAPE_TYPES;\n' +
+'    float rotation = v_meshData.y - TWO_PI * floor(v_meshData.y / TWO_PI);\n' +
+'    gl_FragColor = vec4(shape, rotation / TWO_PI, 0.0, 1.0);\n' +
 '  } else if (v_index < 1.1) {\n' +
-'    gl_FragColor = v_pos_size;\n' +
+// '    gl_FragColor = vec4(1., 0., 0., 1.);' +
+'    gl_FragColor = (v_meshData + (SCENE_SIZE/2.0).xyxy) / SCENE_SIZE.xyxy;\n' +
 '  } else {\n' +
-'    gl_FragColor = v_emission;\n' +
+// '    gl_FragColor = vec4(0., 0., 1., 1.);' +
+'    gl_FragColor = v_meshData;\n' +
 '  }\n' +
 '}';
 
-var isectBufVert = 
-'attribute vec2 reference;\n' +
-'varying vec2 v_uv;\n' +
-'varying vec2 v_position;\n' +
-'void main() {\n' +
-'  v_uv = reference;\n' +
-'  v_position = position.xy;\n' +
-'  gl_PointSize = 1.;\n' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
-'}';
-
-var isectBufFrag = 
-// 'attribute vec2 reference;\n' +
-'varying vec2 v_uv;\n' +
-'varying vec2 v_position;\n' +
-'uniform vec2 resolution;\n' +
-'uniform sampler2D meshBuffer;\n' +
-'void main() {\n' +
-// '  gl_FragColor = vec4(1., 0., 0., 1.);' +
-// '  gl_FragColor = texture2D(meshBuffer, vec2(0.51, 1.));' +
-'  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
-// '  gl_FragColor = texture2D(meshBuffer, v_uv);' +
-'}';
-
-var sdfFragmentShader =
-'#define PI 3.14159265359\n' +
+var meshBufTestFrag =
+'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
+'#define SHAPE_TYPES 2.0\n' +
+'#define TWO_PI 6.28318530718\n' +
+'#define SCENE_SIZE vec2(' + sceneWidth + ',' + sceneHeight +')\n' +
 '#define EPS 1.0\n' +
-'uniform sampler2D meshBuffer;\n' +
 'uniform vec2 resolution;\n' +
-'varying vec2 fUv;\n' +
+'uniform sampler2D meshBuffer;\n' +
 'mat2 rotate(float angle) {\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
@@ -87,7 +67,7 @@ var sdfFragmentShader =
 '              s,c);\n' +
 '}\n' +
 'float box(vec2 pos, vec2 size, float angle) {\n' +
-'  vec2 p = pos + resolution.xy;' +
+'  vec2 p = pos + resolution.xy;\n' +
 '  vec2 v = gl_FragCoord.xy - p;\n' +
 '  v = rotate( angle ) * v;\n' +
 '  v = v + p;\n' +
@@ -95,16 +75,45 @@ var sdfFragmentShader =
 '  v = max( (p - b) - v,  v - (p + b) );\n' +
 '  return max(v.x, v.y);' +
 '}\n' +
-'float circle(vec2 pos, float size) {\n' +
-'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
-'}\n' +
-'void main() {' +
-// '  gl_FragColor = texture2D(meshBuffer, vec2(fUv.x, 0.));' +
-'  if (gl_FragCoord.x < 1024. && gl_FragCoord.y < 100.) {' +
-'    gl_FragColor = vec4(1.0, 0., 1.0, 0.5);' +
-'  } else {' +
-'    gl_FragColor = vec4(0.);' +
-'  }' +
+'void main() {\n' +
+'  gl_FragColor = vec4(0.0);\n' +
+'  float col0 = 0.0;\n' +
+'  float col1 = 1.0 / resolution.x;\n' +
+'  float col2 = 2.0 / resolution.x;\n' +
+'  for (int j = 0; j < MESH_BUF_HEIGHT; j++) {\n' +
+'    float row = float(j) / resolution.y;\n' +
+'    vec4 pix0 = texture2D(meshBuffer, vec2(row, col0));\n' +
+'    float shape = pix0.r * SHAPE_TYPES;\n' +
+'    if (shape < 0.1) continue;\n' +
+'    float rotation = pix0.g * TWO_PI;\n' +
+'    vec4 pix1 = texture2D(meshBuffer, vec2(row, col1));\n' +
+'    vec4 pix2 = texture2D(meshBuffer, vec2(row, col2));\n' +
+'    vec4 pos_size = pix1 * SCENE_SIZE.xyxy - (SCENE_SIZE/2.0).xyxy;\n' +
+'    if (shape < 1.1) {\n' +
+'      if (box(pos_size.xy, pos_size.zw, rotation) < EPS) {\n' +
+'        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
+'        break;\n' +
+'      }\n' +
+'    }\n' +
+'  }\n' +
+'}';
+
+var isectBufVert = 
+'varying vec2 v_position;\n' +
+'void main() {\n' +
+'  v_position = position.xy;\n' +
+'  gl_PointSize = 1.;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+'}';
+
+var isectBufFrag = 
+'varying vec2 v_position;\n' +
+'uniform vec2 resolution;\n' +
+'uniform sampler2D meshBuffer;\n' +
+'void main() {\n' +
+// '  gl_FragColor = vec4(1., 0., 0., 1.);' +
+'  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
+// '  gl_FragColor = texture2D(meshBuffer, v_uv);' +
 '}';
 
 var sdfFragmentShaderPart1 =
@@ -150,8 +159,8 @@ function makeSdfFragmentShader() {
   for (var id in meshes) {
     var m = meshes[id]
     if (m == undefined) continue;
-    if (m.shape === 'Box') {
-      // console.log(m);
+    if (m.shape < 0.1) continue;
+    else if (m.shape < 1.1) {
       sdfFragmentShaderPart2 += prefix + sdfBox(m.position, new THREE.Vector2(m.geometry.parameters.width, m.geometry.parameters.height), 
         m.rotation.z, m.material.color);
       prefix = ' else ';
@@ -212,18 +221,33 @@ function init() {
     { format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
 
   meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
-  meshBuffer.mesh.geometry.addAttribute( 'shape_rot', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
-  meshBuffer.mesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
-  meshBuffer.mesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  meshBuffer.mesh.geometry.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  // meshBuffer.mesh.geometry.addAttribute( 'shape_rot', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  // meshBuffer.mesh.geometry.addAttribute( 'pos_size', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
+  // meshBuffer.mesh.geometry.addAttribute( 'emission', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
   meshBuffer.scene.add(meshBuffer.mesh);
   // scene.add(meshBuffer.mesh);
 
-  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, isectBufVert, isectBufFrag);
+
+  testMat = new THREE.ShaderMaterial( {
+    uniforms: { 
+      meshBuffer: { type: "t", value: meshBuffer.target.texture },
+      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } 
+    },
+    fragmentShader: meshBufTestFrag,
+    // fragmentShader: makeSdfFragmentShader(),
+    transparent: true,
+  } );
+  testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
+  scene.add(testMesh);
+  testMesh.position.set(0, 0, 1);
+
+/*  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, isectBufVert, isectBufFrag);
   intersectBuffer.mesh.material.uniforms = {
     meshBuffer: { type: "t", value: meshBuffer.target.texture },
     resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
   };
-  scene.add(intersectBuffer.mesh);
+  scene.add(intersectBuffer.mesh);*/
 };
 
 function setupBuffer(width, height, vertexShader, fragmentShader) {
@@ -255,7 +279,7 @@ function animate(tick) {
   }
   if(!lastTick || tick - lastTick >= 500) {
     lastTick = tick;
-    // updateMeshBuffer();
+    updateMeshBuffer();
     // updateTestPoints();
   }
   render();
@@ -267,46 +291,30 @@ function animate(tick) {
 function render() {
   renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
   renderer.render( scene, camera );
+  // testMat.fragmentShader = makeSdfFragmentShader();
+  // testMat.needsUpdate = true;
 }
 
 function updateMeshBuffer() {
-  var shape_rot = meshBuffer.mesh.geometry.attributes.shape_rot;
-  var pos_size = meshBuffer.mesh.geometry.attributes.pos_size;
-  var emission = meshBuffer.mesh.geometry.attributes.emission;
-  shape_rot.array.fill(0);
-  pos_size.array.fill(0);
-  emission.array.fill(0);
+  var meshData = meshBuffer.mesh.geometry.attributes.meshData;
+  meshData.array.fill(0);
 
   for (var j in meshes) {
     var m = meshes[j];
     if (m == undefined) continue;
     var h = 4 * meshBufferWidth * j;
-    shape_rot.array[h] = m.shape;
-    shape_rot.array[h+1] = m.rotation.z;
-    pos_size.array[h+4] = m.position.x;
-    pos_size.array[h+5] = m.position.y;
-    pos_size.array[h+6] = m.size.x;
-    pos_size.array[h+7] = m.size.y;
-    emission.array[h+8] = emission.r;
-    emission.array[h+9] = emission.g;
-    emission.array[h+10] = emission.b;
-    emission.array[h+11] = emission.a;
-/*    for (var i = 0; i < meshBufferWidth; i++) {
-      shape_rot.array[4*i+h] = m.shape;
-      shape_rot.array[4*i+h+1] = m.rotation.z;
-      pos_size.array[4*i+h] = m.position.x;
-      pos_size.array[4*i+h+1] = m.position.y;
-      pos_size.array[4*i+h+2] = m.size.x;
-      pos_size.array[4*i+h+3] = m.size.y;
-      emission.array[4*i+h] = emission.r;
-      emission.array[4*i+h+1] = emission.g;
-      emission.array[4*i+h+2] = emission.b;
-      emission.array[4*i+h+3] = emission.a;
-    }*/
+    meshData.array[h] = m.shape;
+    meshData.array[h+1] = m.rotation.z;
+    meshData.array[h+4] = m.position.x;
+    meshData.array[h+5] = m.position.y;
+    meshData.array[h+6] = m.size.x;
+    meshData.array[h+7] = m.size.y;
+    meshData.array[h+8] = m.emission.r;
+    meshData.array[h+9] = m.emission.g;
+    meshData.array[h+10] = m.emission.b;
+    meshData.array[h+11] = m.emission.a;
   }
-  shape_rot.needsUpdate = true;
-  pos_size.needsUpdate = true;
-  emission.needsUpdate = true;
+  meshData.needsUpdate = true;
 }
 
 function updateTestPoints() {
