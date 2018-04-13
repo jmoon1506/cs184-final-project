@@ -117,46 +117,6 @@ sdfFragmentShaderPart1 +
 '  }\n' +
 '}';
 
-var meshBufTest2Vert = 
-'varying vec2 v_position;\n' +
-'void main() {\n' +
-'  v_position = position.xy;\n' +
-'  gl_PointSize = 1.;\n' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
-'}';
-
-var meshBufTest2Frag = 
-'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
-'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
-'varying vec2 v_position;\n' +
-'uniform sampler2D meshBuffer;\n' +
-'uniform vec2 meshBufSize;\n' +
-'uniform vec2 resolution;\n' +
-'void main() {\n' +
-// '  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
-'  float col = 2.0 / float(MESH_BUF_WIDTH);\n' +
-'  float row = 0.0 / float(MESH_BUF_HEIGHT);\n' +
-'  gl_FragColor = texture2D(meshBuffer, vec2(col, row));\n' +
-'}';
-
-var isectBufVert = 
-'varying vec2 v_position;\n' +
-'void main() {\n' +
-'  v_position = position.xy;\n' +
-'  gl_PointSize = 1.;\n' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
-'}';
-
-var isectBufFrag = 
-'varying vec2 v_position;\n' +
-'uniform vec2 resolution;\n' +
-'uniform sampler2D meshBuffer;\n' +
-'void main() {\n' +
-'  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
-'}';
-
-
-
 var sdfCircle = function(position, size, color) { return '' +
 '  if (circle(vec2(' + glslVector2(position) + '), ' + glslFloat(size) + ') < 1.0) {' +
 '    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
@@ -237,16 +197,13 @@ function init() {
     { format: THREE.RGBFormat, 
       minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, 
       stencilBuffer: false,
-      // type: THREE.HalfFloatType,
+      type: THREE.FloatType,
     } );
-  // meshBuffer.target.texture.minFilter = THREE.NearestFilter;
-  // meshBuffer.target.texture.magFilter = THREE.NearestFilter;
 
   meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
   meshBuffer.mesh.geometry.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 3 ), 3 ) );
   meshBuffer.scene.add(meshBuffer.mesh);
   // scene.add(meshBuffer.mesh);
-
 
   testMat = new THREE.ShaderMaterial( {
     uniforms: { 
@@ -263,13 +220,6 @@ function init() {
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
   testMesh.position.set(0, 0, 1);
-
-/*  intersectBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, isectBufVert, isectBufFrag);
-  intersectBuffer.mesh.material.uniforms = {
-    meshBuffer: { type: "t", value: meshBuffer.target.texture },
-    resolution: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
-  };
-  scene.add(intersectBuffer.mesh);*/
 
   Engine.run(engine);
 };
@@ -326,19 +276,6 @@ function render() {
 function updateMeshBuffer() {
   var meshData = meshBuffer.mesh.geometry.attributes.meshData;
   meshData.array.fill(0);
-/*  meshData.array[0] = 1; // shape
-  meshData.array[1] = 0; // x
-  meshData.array[2] = 0; // y
-  meshData.array[3] = 0; // rotation
-  meshData.array[4] = 300; // w
-  meshData.array[5] = 200; // h
-  meshData.array[6] = 0; // emission r
-  meshData.array[7] = 0; // emission g
-  meshData.array[8] = 0; // emission b
-  meshData.array[9] = 0; // emission a
-  meshData.array[10] = 0;
-  meshData.array[11] = 0;*/
-
   var h;
   for (var j = 0; j < meshBufferHeight; j++) {
     var m = meshes[j];
@@ -357,7 +294,7 @@ function updateMeshBuffer() {
     meshData.array[h+10] = 0;
     meshData.array[h+11] = 0;
   }
-  meshData.array[h+11] = 1; // flag last object
+  meshData.array[h+11] = 1; // flag last object so shader can exit early
   meshData.needsUpdate = true;
 }
 
