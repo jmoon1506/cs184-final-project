@@ -9,8 +9,8 @@ var mouse = new THREE.Vector2();
 var lastTick = 0;
 
 var shapeTypes = 2;
-var sceneWidth = 1024;
-var sceneHeight = 800;
+var sceneWidth = 2048;
+var sceneHeight = 2048;
 var meshBufferWidth = 4;     // data pixels per object
 var meshBufferHeight = 60;  // max object count
 var isectBufferWidth = 1024; // rays per angle
@@ -37,10 +37,10 @@ var meshBufVert =
 '    v_color = vec3(shape, x, y);\n' +
 // '    v_color = vec3(1., 0., 0.);\n' +
 '  } else if (position.x < 1.6) {\n' +
-'    float rotation = meshData.x - TWO_PI * floor(ANGLE_FACTOR * meshData.y);\n' +
+'    float rotation = meshData.x - TWO_PI * floor(ANGLE_FACTOR * meshData.x);\n' +
 '    float w = WIDTH_FACTOR * meshData.y + 0.5;\n' +
 '    float h = HEIGHT_FACTOR * meshData.z + 0.5;\n' +
-'    v_color = vec3(rotation, w, h);\n' +
+'    v_color = vec3(rotation * ANGLE_FACTOR, w, h);\n' +
 // '    v_color = vec3(0., 1., 0.);\n' +
 '  } else if (position.x < 2.6) {\n' +
 '    v_color = meshData;\n' +
@@ -96,14 +96,6 @@ sdfFragmentShaderPart1 +
 '  float col1 = 1.5 / float(MESH_BUF_WIDTH);\n' +
 '  float col2 = 2.5 / float(MESH_BUF_WIDTH);\n' +
 '  float col3 = 3.5 / float(MESH_BUF_WIDTH);\n' +
-// '  float row = 0.0 / float(MESH_BUF_HEIGHT);\n' +
-// '  vec4 meshData = vec4(0., 0., 200., 200.);\n' +
-// '  vec4 v_color = (meshData + (dim / 2.0)) / dim;\n' +
-// '  gl_FragColor = texture2D(meshBuffer, vec2(col1, row));\n' +
-// '  vec4 newcol = texture2D(meshBuffer, vec2(col0, row));\n' +
-// '  if (newcol.a > 1.1) gl_FragColor = vec4(1.0);\n' +
-// '  gl_FragColor = vec4(0.5,0.5,0.695, 0.75);\n' +
-// '  gl_FragColor = v_color;\n' +
 '  for (int j = 0; j < MESH_BUF_HEIGHT; j++) {\n' +
 '    float row = (float(j) + 0.5) / float(MESH_BUF_HEIGHT);\n' +
 '    vec4 pix0 = texture2D(meshBuffer, vec2(col0, row));\n' +
@@ -113,13 +105,13 @@ sdfFragmentShaderPart1 +
 '    vec2 pos = (pix0.yz - 0.5) * dim;\n' +
 '    float rotation = pix1.x * TWO_PI;\n' +
 '    vec2 size = (pix1.yz - 0.5) * dim;\n' +
-// '    vec2 pos = vec2(0.,0.);\n' +
-// '    float rotation = 0.;\n' +
-// '    vec2 size = vec2(200.,200.);\n' +
 '    if (shape < 1.1) {\n' +
 '      if (box(pos, size, rotation) < 0.0) {\n' +
 '        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
 '        break;\n' +
+'      } else {\n' +
+'        vec4 pix3 = texture2D(meshBuffer, vec2(col3, row));\n' +
+'        if (pix3.z > 0.9) break;\n' +
 '      }\n' +
 '    }\n' +
 '  }\n' +
@@ -313,10 +305,11 @@ function animate(tick) {
       m.position.set(position.x, position.y, 0);
     }
   }
-  if(!lastTick || tick - lastTick >= 500) {
+/*  if(!lastTick || tick - lastTick >= 500) {
     lastTick = tick;
     updateMeshBuffer();
-  }
+  }*/
+  updateMeshBuffer();
   render();
 
   if (showStats) {
@@ -333,7 +326,7 @@ function render() {
 function updateMeshBuffer() {
   var meshData = meshBuffer.mesh.geometry.attributes.meshData;
   meshData.array.fill(0);
-  meshData.array[0] = 1; // shape
+/*  meshData.array[0] = 1; // shape
   meshData.array[1] = 0; // x
   meshData.array[2] = 0; // y
   meshData.array[3] = 0; // rotation
@@ -344,26 +337,27 @@ function updateMeshBuffer() {
   meshData.array[8] = 0; // emission b
   meshData.array[9] = 0; // emission a
   meshData.array[10] = 0;
-  meshData.array[11] = 0;
+  meshData.array[11] = 0;*/
 
-/*  for (var j = 0; j < meshBufferHeight; j++) {
+  var h;
+  for (var j = 0; j < meshBufferHeight; j++) {
     var m = meshes[j];
     if (m == undefined) continue;
-    var h = 3 * meshBufferWidth * j;
+    h = 3 * meshBufferWidth * j;
     meshData.array[h] = m.shape;
-    meshData.array[h+1] = m.rotation.z;
-    meshData.array[h+2] = 0;
-    meshData.array[h+3] = 0;
-    meshData.array[h+4] = m.position.x;
-    meshData.array[h+5] = m.position.y;
-    meshData.array[h+6] = m.size.x;
-    meshData.array[h+7] = m.size.y;
+    meshData.array[h+1] = m.position.x;
+    meshData.array[h+2] = m.position.y;
+    meshData.array[h+3] = m.rotation.z;
+    meshData.array[h+4] = m.size.x;
+    meshData.array[h+5] = m.size.y;
+    meshData.array[h+6] = 0;
+    meshData.array[h+7] = 0;
     meshData.array[h+8] = 0;
     meshData.array[h+9] = 0;
     meshData.array[h+10] = 0;
     meshData.array[h+11] = 0;
-  }*/
-  // console.log(meshData.array);
+  }
+  meshData.array[h+11] = 1; // flag last object
   meshData.needsUpdate = true;
 }
 
