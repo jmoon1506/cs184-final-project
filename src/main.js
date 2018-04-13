@@ -23,22 +23,24 @@ var testMesh, testMat;
 var meshBufVert = 
 '#define SHAPE_TYPES 2.0\n' +
 '#define TWO_PI 6.28318530718\n' +
-'#define SCENE_SIZE vec2(' + sceneWidth + '.,' + sceneHeight +'.)\n' +
+'#define SCENE_WIDTH ' + sceneWidth + '\n' +
+'#define SCENE_HEIGHT ' + sceneHeight + '\n' +
 'attribute vec4 meshData;\n' +
 'varying vec4 v_color;\n' +
 'void main() {\n' +
+// '  v_color = meshData;\n' +
 '  if (position.x < 0.6) {\n' +
 '    float shape = meshData.x / SHAPE_TYPES;\n' +
 '    float rotation = meshData.y - TWO_PI * floor(meshData.y / TWO_PI);\n' +
-'    v_color = vec4(1.,0.,0.,1.);\n' +
-// '    v_color = vec4(shape, rotation / TWO_PI, 0.0, 0.0);\n' +
+// '    v_color = vec4(1.,0.,0.,1.);\n' +
+'    v_color = vec4(shape, rotation / TWO_PI, 0.0, 1.0);\n' +
 '  } else if (position.x < 1.6) {\n' +
-'    vec4 dim = SCENE_SIZE.xyxy;' +
-'    v_color = vec4(0.,1.,0.,1.);\n' +
-// '    v_color = (meshData + dim / 2.0) / dim;\n' +
+'    vec4 dim = vec4(SCENE_WIDTH, SCENE_HEIGHT, SCENE_WIDTH, SCENE_HEIGHT);' +
+// '    v_color = vec4(0.,1.,0.,1.);\n' +
+'    v_color = (meshData / dim) + 0.5;\n' +
 '  } else {\n' +
-'    v_color = vec4(0.,0.,1.,1.);\n' +
-// '    v_color = meshData;\n' +
+// '    v_color = vec4(0.,0.,1.,1.);\n' +
+'    v_color = meshData;\n' +
 '  }\n' +
 '  gl_PointSize = 1.0;\n' +
 '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position.xy, 0.0, 1.0 );\n' +
@@ -68,30 +70,42 @@ var sdfFragmentShaderPart1 =
 '  return max(v.x, v.y);' +
 '}\n' +
 'float circle(vec2 pos, float size) {\n' +
-'  return length(gl_FragCoord.xy - vec2(600., 100.)) - 100.;\n' +
+'  return length(gl_FragCoord.xy - pos) - size;\n' +
 '}\n' +
 'void main() {';
 
 var meshBufTestFrag =
 '#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
 '#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
+'#define SCENE_WIDTH ' + sceneWidth + '\n' +
+'#define SCENE_HEIGHT ' + sceneHeight + '\n' +
 '#define SHAPE_TYPES 2.0\n' +
 '#define TWO_PI 6.28318530718\n' +
-'#define SCENE_SIZE vec2(' + sceneWidth + '.,' + sceneHeight +'.)\n' +
+'uniform sampler2D meshBuffer;\n' +
 sdfFragmentShaderPart1 +
 '  gl_FragColor = vec4(0.0);\n' +
-'  float col0 = 0.33;\n' +
-'  float col1 = 0.66;\n' +
-'  float col2 = 1.0;\n' +
-'  for (int j = 0; j < MESH_BUF_HEIGHT; j++) {\n' +
+'  float col0 = 0.5 / float(MESH_BUF_WIDTH);\n' +
+'  float col1 = 1.5 / float(MESH_BUF_WIDTH);\n' +
+'  float col2 = 2.5 / float(MESH_BUF_WIDTH);\n' +
+'  float row = 0.0 / float(MESH_BUF_HEIGHT);\n' +
+'  vec4 meshData = vec4(0., 0., 200., 200.);\n' +
+'  vec4 dim = vec4(SCENE_WIDTH, SCENE_HEIGHT, SCENE_WIDTH, SCENE_HEIGHT);' +
+'  vec4 v_color = (meshData + (dim / 2.0)) / dim;\n' +
+// '  gl_FragColor = texture2D(meshBuffer, vec2(col1, row));\n' +
+'  vec4 newcol = texture2D(meshBuffer, vec2(col1, row));\n' +
+'  if (newcol.a > 0.76) gl_FragColor = vec4(1.0);\n' +
+// '  gl_FragColor = vec4(0.5,0.5,0.695, 0.75);\n' +
+// '  gl_FragColor = v_color;\n' +
+/*'  for (int j = 0; j < MESH_BUF_HEIGHT; j++) {\n' +
 '    float row = float(j) / float(MESH_BUF_HEIGHT);\n' +
-'    vec4 pix0 = texture2D(meshBuffer, vec2(row, col0));\n' +
+'    vec4 pix0 = texture2D(meshBuffer, vec2(col0, row));\n' +
 '    float shape = pix0.x * SHAPE_TYPES;\n' +
 '    if (shape < 0.1) continue;\n' +
-'    float rotation = pix0.y * TWO_PI;\n' +
-'    vec4 pix1 = texture2D(meshBuffer, vec2(row, col1));\n' +
-'    vec4 pix2 = texture2D(meshBuffer, vec2(row, col2));\n' +
-'    vec4 dim = SCENE_SIZE.xyxy;' +
+'    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
+'    float rotation = pix0.y * TWO_PI;\n' +*/
+/*'    vec4 pix1 = texture2D(meshBuffer, vec2(col1, row));\n' +
+'    vec4 pix2 = texture2D(meshBuffer, vec2(col2, row));\n' +
+'    vec4 dim = vec4(SCENE_WIDTH, SCENE_HEIGHT, SCENE_WIDTH, SCENE_HEIGHT);' +
 '    vec4 pos_size = (pix1 - 0.5) * dim;\n' +
 '    if (shape < 1.1) {\n' +
 '      if (box(pos_size.xy, pos_size.zw, rotation) < 1.0) {\n' +
@@ -99,7 +113,29 @@ sdfFragmentShaderPart1 +
 '        break;\n' +
 '      }\n' +
 '    }\n' +
-'  }\n' +
+'  }\n' +*/
+'}';
+
+var meshBufTest2Vert = 
+'varying vec2 v_position;\n' +
+'void main() {\n' +
+'  v_position = position.xy;\n' +
+'  gl_PointSize = 1.;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+'}';
+
+var meshBufTest2Frag = 
+'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
+'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
+'varying vec2 v_position;\n' +
+'uniform sampler2D meshBuffer;\n' +
+'uniform vec2 meshBufSize;\n' +
+'uniform vec2 resolution;\n' +
+'void main() {\n' +
+// '  gl_FragColor = texture2D(meshBuffer, v_position / resolution);' +
+'  float col = 2.0 / float(MESH_BUF_WIDTH);\n' +
+'  float row = 0.0 / float(MESH_BUF_HEIGHT);\n' +
+'  gl_FragColor = texture2D(meshBuffer, vec2(col, row));\n' +
 '}';
 
 var isectBufVert = 
@@ -181,7 +217,9 @@ function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color( 0xf0f0f0 );
   raycaster = new THREE.Raycaster();
-  renderer = new THREE.WebGLRenderer();
+  renderer = new THREE.WebGLRenderer(
+    { premultipliedAlpha: false,
+    } );
   container.appendChild(renderer.domElement);
   renderer.setPixelRatio( window.devicePixelRatio );
   renderer.setSize( container.offsetWidth, container.offsetHeight );
@@ -197,7 +235,13 @@ function init() {
   meshBuffer.camera = new THREE.OrthographicCamera( 0, meshBufferWidth, meshBufferHeight, 0, -1, 1 );
   meshBuffer.scene = new THREE.Scene();
   meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferWidth, meshBufferHeight,
-    { format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    { format: THREE.RGBFormat, 
+      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, 
+      stencilBuffer: false,
+      type: THREE.HalfFloatType,
+    } );
+  // meshBuffer.target.texture.minFilter = THREE.NearestFilter;
+  // meshBuffer.target.texture.magFilter = THREE.NearestFilter;
 
   meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
   meshBuffer.mesh.geometry.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 4 ), 4 ) );
@@ -208,11 +252,15 @@ function init() {
   testMat = new THREE.ShaderMaterial( {
     uniforms: { 
       meshBuffer: { type: "t", value: meshBuffer.target.texture },
-      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) } 
+      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+      meshBufSize: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
     },
-    // fragmentShader: meshBufTestFrag,
-    fragmentShader: makeSdfFragmentShader(),
+    // vertexShader: meshBufTest2Vert,
+    fragmentShader: meshBufTestFrag,
+    // fragmentShader: makeSdfFragmentShader(),
+    depthTest: false,
     transparent: true,
+    premultipliedAlpha: false,
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
@@ -243,6 +291,7 @@ function setupBuffer(width, height, vertexShader, fragmentShader) {
     fragmentShader:  fragmentShader,
     depthTest:       false,
     transparent:     true,
+    premultipliedAlpha: false,
   } );
   return new THREE.Points( geometry, material );
 }
@@ -271,15 +320,27 @@ function animate(tick) {
 function render() {
   renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
   renderer.render( scene, camera );
-  testMat.fragmentShader = makeSdfFragmentShader();
-  testMat.needsUpdate = true;
+  // testMat.fragmentShader = makeSdfFragmentShader();
+  // testMat.needsUpdate = true;
 }
 
 function updateMeshBuffer() {
   var meshData = meshBuffer.mesh.geometry.attributes.meshData;
   meshData.array.fill(0);
+  meshData.array[0] = 1;
+  meshData.array[1] = 0;
+  meshData.array[2] = 0;
+  meshData.array[3] = 1;
+  meshData.array[4] = 0;
+  meshData.array[5] = 0;
+  meshData.array[6] = 200;
+  meshData.array[7] = 200;
+  meshData.array[8] = 0;
+  meshData.array[9] = 0;
+  meshData.array[10] = 0;
+  meshData.array[11] = 0;
 
-  for (var j = 0; j < meshBufferHeight; j++) {
+/*  for (var j = 0; j < meshBufferHeight; j++) {
     var m = meshes[j];
     if (m == undefined) continue;
     var h = 4 * meshBufferWidth * j;
@@ -295,7 +356,7 @@ function updateMeshBuffer() {
     meshData.array[h+9] = 0;
     meshData.array[h+10] = 0;
     meshData.array[h+11] = 0;
-  }
+  }*/
   // console.log(meshData.array);
   meshData.needsUpdate = true;
 }
