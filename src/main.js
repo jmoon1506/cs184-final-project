@@ -1,8 +1,7 @@
 var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
-var meshBuffer = {};
-var intersectBuffer = {};
+var meshBuffer, isectBuffer;
 var showStats = true;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
@@ -12,7 +11,7 @@ var shapeTypes = 2;
 var sceneWidth = 2048;
 var sceneHeight = 2048;
 var meshBufferWidth = 4;     // data pixels per object
-var meshBufferHeight = 60;  // max object count
+var meshBufferHeight = 60;   // max object count
 var isectBufferWidth = 1024; // rays per angle
 var isectDepth = 30;         // isects per ray
 var isectBufferHeight = 180 * isectDepth;
@@ -20,6 +19,21 @@ var isectBufferHeight = 180 * isectDepth;
 var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies;
 
 var testMesh, testMat;
+
+function glslFloat(val) {
+  if (val % 1 == 0)
+    return '' + val + '.';
+  else
+    return '' + val;
+}
+
+function glslVector2(vec) {
+  return glslFloat(vec.x) + ',' + glslFloat(vec.y);
+}
+
+function glslColor(rgb, a) {
+  return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
+}
 
 var meshBufVert = 
 '#define TWO_PI 6.28318530718\n' +
@@ -57,6 +71,27 @@ var meshBufFrag =
 'varying vec3 v_color;\n' +
 'void main() {\n' +
 '  gl_FragColor = vec4(v_color, 1.);\n' +
+'}';
+
+var isectBufVert = 
+'uniform sampler2D meshBuffer;\n' +
+'uniform vec2 resolution;\n' +
+'varying vec3 v_color;\n' +
+'varying vec3 v_position;\n' +
+'void main() {\n' +
+// '  v_color = vec3(texture2D(meshBuffer, position.xy / resolution));\n' +
+'  v_position = position;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position.xy, 0.0, 1.0 );\n' +
+'}';
+
+var isectBufFrag = 
+'uniform sampler2D meshBuffer;\n' +
+'uniform vec2 resolution;\n' +
+// 'varying vec3 v_color;\n' +
+'varying vec3 v_position;\n' +
+'void main() {\n' +
+'  gl_FragColor = texture2D(meshBuffer, v_position.xy / resolution);\n' +
+// '  gl_FragColor = vec4(v_color, 1.);\n' +
 '}';
 
 var sdfFragmentShaderPart1 =
@@ -149,21 +184,6 @@ function makeSdfFragmentShader() {
   }
 }
 
-function glslFloat(val) {
-  if (val % 1 == 0)
-    return '' + val + '.';
-  else
-    return '' + val;
-}
-
-function glslVector2(vec) {
-  return glslFloat(vec.x) + ',' + glslFloat(vec.y);
-}
-
-function glslColor(rgb, a) {
-  return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Main Program
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,27 +211,24 @@ function init() {
 
   addObjects(defaultObjectParams());
 
-  meshBuffer.camera = new THREE.OrthographicCamera( 0, meshBufferWidth, meshBufferHeight, 0, -1, 1 );
-  meshBuffer.scene = new THREE.Scene();
-  meshBuffer.target = new THREE.WebGLRenderTarget( meshBufferWidth, meshBufferHeight,
-    { format: THREE.RGBFormat, 
-      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, 
-      stencilBuffer: false,
-      type: THREE.FloatType,
-    } );
-
-  meshBuffer.mesh = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
+  meshBuffer = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
   meshBuffer.mesh.geometry.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 3 ), 3 ) );
   meshBuffer.scene.add(meshBuffer.mesh);
   // scene.add(meshBuffer.mesh);
 
-  testMat = new THREE.ShaderMaterial( {
+  isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight, isectBufVert, isectBufFrag);
+  isectBuffer.mesh.material.uniforms = {
+    meshBuffer: { type: "t", value: meshBuffer.target.texture },
+    resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+  };
+  // isectBuffer.scene.add(isectBuffer.mesh);
+  scene.add(isectBuffer.mesh);
+
+/*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
       meshBuffer: { type: "t", value: meshBuffer.target.texture },
       resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
-      meshBufSize: { type: "v2", value: new THREE.Vector2( meshBufferWidth, meshBufferHeight ) },
     },
-    // vertexShader: meshBufTest2Vert,
     fragmentShader: meshBufTestFrag,
     // fragmentShader: makeSdfFragmentShader(),
     depthTest: false,
@@ -219,12 +236,23 @@ function init() {
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);
+  testMesh.position.set(0, 0, 1);*/
 
   Engine.run(engine);
 };
 
 function setupBuffer(width, height, vertexShader, fragmentShader) {
+  var buffer = {};
+  buffer.camera = new THREE.OrthographicCamera( 0, width, height, 0, -1, 1 );
+  buffer.scene = new THREE.Scene();
+  buffer.target = new THREE.WebGLRenderTarget( width, height,
+    { format: THREE.RGBFormat, 
+      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, 
+      stencilBuffer: false,
+      depthBuffer: false,
+      type: THREE.FloatType,
+      transparent: false,
+    } );
   var positions = new Float32Array( width * height * 3 );
   for ( var j = 0; j < height; j++ ) {
     for ( var i = 0; i < width; i++ ) {
@@ -241,7 +269,8 @@ function setupBuffer(width, height, vertexShader, fragmentShader) {
     transparent:     true,
     premultipliedAlpha: false,
   } );
-  return new THREE.Points( geometry, material );
+  buffer.mesh = new THREE.Points( geometry, material );
+  return buffer;
 }
 
 function animate(tick) {
