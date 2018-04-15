@@ -12,9 +12,10 @@ var sceneWidth = 2048;
 var sceneHeight = 2048;
 var meshBufferWidth = 4;     // data pixels per object
 var meshBufferHeight = 60;   // max object count
-var isectBufferWidth = 1024; // rays per angle
-var isectDepth = 30;         // isects per ray
-var isectBufferHeight = 180 * isectDepth;
+var isectBufferWidth = 200; // rays per angle
+var isectDepth = 8;         // isects per ray
+var isectAngles = 30;
+var isectBufferHeight = isectAngles * isectDepth;
 
 var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies;
 
@@ -216,13 +217,25 @@ function init() {
   meshBuffer.scene.add(meshBuffer.mesh);
   // scene.add(meshBuffer.mesh);
 
-  isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight, isectBufVert, isectBufFrag);
+/*  isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight, isectBufVert, isectBufFrag);
   isectBuffer.mesh.material.uniforms = {
     meshBuffer: { type: "t", value: meshBuffer.target.texture },
     resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
   };
   // isectBuffer.scene.add(isectBuffer.mesh);
-  scene.add(isectBuffer.mesh);
+  scene.add(isectBuffer.mesh);*/
+
+/*  isectBuffer = {}
+  var material = new THREE.ShaderMaterial( {
+    uniforms: { 
+      meshBuffer: { type: "t", value: meshBuffer.target.texture },
+      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+    },
+    fragmentShader: meshBufTestFrag,
+    // fragmentShader: makeSdfFragmentShader(),
+    depthTest: false,
+    transparent: true,
+  } );*/
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
@@ -344,7 +357,7 @@ function addObjects(objectParams) {
       mesh.rotation.z = o.rotation;
       mesh.emission = hexToRGBA(o.emission);
       mesh.shape = 1;
-      var body = Bodies.rectangle(
+      mesh.physicsBody = Bodies.rectangle(
           o.position.x,
           o.position.y,
           o.size.x,
@@ -357,11 +370,11 @@ function addObjects(objectParams) {
             density: 0.001
           }
         );
-      Matter.Body.rotate(body, o.rotation);
+      Matter.Body.rotate(mesh.physicsBody, o.rotation);
       // body.angle = o.rotation;
 
       physicsBodies.push(
-        body
+        mesh.physicsBody
       );
     } else if (o instanceof CircleParam) {
 
@@ -381,6 +394,8 @@ function removeObjects(ids) {
   }
   for (var id in ids) {
     if (meshes[id] == undefined) continue;
+    if (meshes[id].physicsBody != undefined)
+    	Matter.Composite.remove(engine.world, meshes[id].physicsBody);
     meshes[id].geometry.dispose();
     meshes[id].material.dispose();
     scene.remove( meshes[id] );
