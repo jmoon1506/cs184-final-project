@@ -356,7 +356,7 @@ function addObjects(objectParams) {
       mesh.size = o.size;
       mesh.rotation.z = o.rotation;
       mesh.emission = hexToRGBA(o.emission);
-      mesh.shape = 1;
+      mesh.shape = 1; // custom type id
       mesh.physicsBody = Bodies.rectangle(
           o.position.x,
           o.position.y,
@@ -371,13 +371,26 @@ function addObjects(objectParams) {
           }
         );
       Matter.Body.rotate(mesh.physicsBody, o.rotation);
-      // body.angle = o.rotation;
-
-      physicsBodies.push(
-        mesh.physicsBody
-      );
+      physicsBodies.push(mesh.physicsBody);
     } else if (o instanceof CircleParam) {
-
+      mesh = new THREE.Mesh(new THREE.CircleGeometry(o.radius, 64), material); // set #segments to 64 just by default
+      mesh.size = new THREE.Vector2(o.radius, o.radius); // standardize for mesh buffer
+      mesh.emission = hexToRGBA(o.emission);
+      mesh.shape = 2; // custom type id
+      mesh.physicsBody = Bodies.circle(
+          o.position.x,
+          o.position.y,
+          o.radius,
+          {
+            isStatic: o.isStatic,
+            meshId: meshId,
+            friction: 0.00001,
+            restitution: 0.5,
+            density: 0.001
+          },
+          64 // set # sides to match # segments from above
+      );
+      physicsBodies.push(mesh.physicsBody);
     }
     scene.add(mesh);
     mesh.isStatic = o.isStatic;
@@ -467,6 +480,8 @@ function defaultObjectParams() {
                            'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
                            'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
   return objectParams;
 }
 
