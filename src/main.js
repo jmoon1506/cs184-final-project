@@ -104,7 +104,7 @@ var sdfFragmentShaderPart1 =
 '              s,c);\n' +
 '}\n' +
 'float box(vec2 pos, vec2 size, float angle) {\n' +
-'  vec2 p = pos + resolution.xy;' +
+'  vec2 p = pos + resolution.xy;\n' +
 '  vec2 v = gl_FragCoord.xy - p;\n' +
 '  v = rotate( angle ) * v;\n' +
 '  v = v + p;\n' +
@@ -113,7 +113,8 @@ var sdfFragmentShaderPart1 =
 '  return max(v.x, v.y);' +
 '}\n' +
 'float circle(vec2 pos, float size) {\n' +
-'  return length(gl_FragCoord.xy - pos) - size;\n' +
+'  vec2 p = pos + resolution.xy;\n' +
+'  return length(gl_FragCoord.xy - p) - size;\n' +
 '}\n' +
 'void main() {';
 
@@ -141,14 +142,15 @@ sdfFragmentShaderPart1 +
 '    vec2 pos = (pix0.yz - 0.5) * dim;\n' +
 '    float rotation = pix1.x * TWO_PI;\n' +
 '    vec2 size = (pix1.yz - 0.5) * dim;\n' +
-'    if (shape < 1.1) {\n' +
-'      if (box(pos, size, rotation) < 0.0) {\n' +
-'        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
-'        break;\n' +
-'      } else {\n' +
-'        vec4 pix3 = texture2D(meshBuffer, vec2(col3, row));\n' +
-'        if (pix3.z > 0.9) break;\n' +
-'      }\n' +
+'    if (shape > 0.9 && shape < 1.1 && box(pos, size, rotation) < 0.0) {\n' +
+'      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
+'      break;\n' +
+'    } else if (shape > 1.9 && shape < 2.1 && circle(pos, size.x) < 0.0) {\n' +
+'      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
+'      break;\n' +
+'    } else {\n' +
+'      vec4 pix3 = texture2D(meshBuffer, vec2(col3, row));\n' +
+'      if (pix3.z > 0.9) break;\n' +
 '    }\n' +
 '  }\n' +
 '}';
@@ -237,7 +239,7 @@ function init() {
     transparent: true,
   } );*/
 
-/*  testMat = new THREE.ShaderMaterial( {
+  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
       meshBuffer: { type: "t", value: meshBuffer.target.texture },
       resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
@@ -249,7 +251,7 @@ function init() {
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);*/
+  testMesh.position.set(0, 0, 1);
 
   Engine.run(engine);
 };
@@ -375,6 +377,7 @@ function addObjects(objectParams) {
     } else if (o instanceof CircleParam) {
       mesh = new THREE.Mesh(new THREE.CircleGeometry(o.radius, 64), material); // set #segments to 64 just by default
       mesh.size = new THREE.Vector2(o.radius, o.radius); // standardize for mesh buffer
+      mesh.rotation.z = 0;
       mesh.emission = hexToRGBA(o.emission);
       mesh.shape = 2; // custom type id
       mesh.physicsBody = Bodies.circle(
