@@ -142,10 +142,8 @@ sdfFragmentShaderPart1 +
 '    vec2 pos = (pix0.yz - 0.5) * dim;\n' +
 '    float rotation = pix1.x * TWO_PI;\n' +
 '    vec2 size = (pix1.yz - 0.5) * dim;\n' +
-'    if (shape > 0.9 && shape < 1.1 && box(pos, size, rotation) < 0.0) {\n' +
-'      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
-'      break;\n' +
-'    } else if (shape > 1.9 && shape < 2.1 && circle(pos, size.x) < 0.0) {\n' +
+'    if ( (shape > 0.99 && shape < 1.01 && box(pos, size, rotation) < 0.0) ||' +
+'         (shape > 1.99 && shape < 2.01 && circle(pos, size.x) < 0.0) ) {\n' +
 '      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
 '      break;\n' +
 '    } else {\n' +
