@@ -17,7 +17,7 @@ var isectDepth = 8;         // isects per ray
 var isectAngles = 30;
 var isectBufferHeight = isectAngles * isectDepth;
 
-var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies;
+var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies, Body = Matter.Body;
 
 var testMesh, testMat;
 
@@ -212,6 +212,20 @@ function init() {
 
   addObjects(defaultObjectParams());
 
+
+  // Drag and drop
+  var nonStaticMeshes = [];
+  for (var meshId in meshes){
+    var object = meshes[meshId];
+    if (!object.isStatic) {
+      nonStaticMeshes.push(object);
+    }
+  }
+
+  var controls = new THREE.DragControls( nonStaticMeshes, camera, renderer.domElement );
+  controls.addEventListener( 'dragstart', dragStartCallback );
+  controls.addEventListener( 'dragend', dragendCallback );
+
   meshBuffer = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
   meshBuffer.mesh.geometry.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 3 ), 3 ) );
   meshBuffer.scene.add(meshBuffer.mesh);
@@ -254,6 +268,14 @@ function init() {
   Engine.run(engine);
 };
 
+function dragStartCallback(event) {
+  event.object.isBeingDragged = true;
+}
+
+function dragendCallback(event) {
+  event.object.isBeingDragged = false;
+}
+
 function setupBuffer(width, height, vertexShader, fragmentShader) {
   var buffer = {};
   buffer.camera = new THREE.OrthographicCamera( 0, width, height, 0, -1, 1 );
@@ -292,6 +314,11 @@ function animate(tick) {
     var body = engine.world.bodies[j];
     var position = body.position;
     var m = meshes[body.meshId];
+
+    if (m.isBeingDragged) {
+      Body.setPosition(body, { x: m.position.x, y: m.position.y });
+    }
+
     if (!m.isStatic) {
       m.rotation.z = body.angle;
       m.position.set(position.x, position.y, 0);
