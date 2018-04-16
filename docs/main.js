@@ -312,14 +312,14 @@ function animate(tick) {
     var body = engine.world.bodies[j];
     var position = body.position;
     var m = meshes[body.meshId];
-    if (!m.isStatic && !m.isBeingDragged) {
-      m.rotation.z = body.angle;
-      // console.log(event.object.position.y);
-      m.position.set(position.x, position.y, 0);
-    }
 
     if (m.isBeingDragged) {
       Body.setPosition(body, { x: m.position.x, y: m.position.y });
+    }
+
+    if (!m.isStatic) {
+      m.rotation.z = body.angle;
+      m.position.set(position.x, position.y, 0);
     }
   }
 /*  if(!lastTick || tick - lastTick >= 500) {
