@@ -217,7 +217,9 @@ function init() {
   var nonStaticMeshes = [];
   for (var meshId in meshes){
     var object = meshes[meshId];
-    nonStaticMeshes.push(object);
+    if (!object.isStatic) {
+      nonStaticMeshes.push(object);
+    }
   }
 
   var controls = new THREE.DragControls( nonStaticMeshes, camera, renderer.domElement );
