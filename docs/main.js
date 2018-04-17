@@ -36,6 +36,29 @@ function glslColor(rgb, a) {
   return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
 }
 
+var sdfFragmentShaderPart1 =
+'uniform vec2 resolution;\n' +
+'mat2 rotate(float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  return mat2(c,-s,\n' +
+'              s,c);\n' +
+'}\n' +
+'float box(vec2 pos, vec2 size, float angle) {\n' +
+'  vec2 p = pos + resolution.xy;\n' +
+'  vec2 v = gl_FragCoord.xy - p;\n' +
+'  v = rotate( angle ) * v;\n' +
+'  v = v + p;\n' +
+'  vec2 b = size / 2.;\n' +
+'  v = max( (p - b) - v,  v - (p + b) );\n' +
+'  return max(v.x, v.y);' +
+'}\n' +
+'float circle(vec2 pos, float size) {\n' +
+'  vec2 p = pos + resolution.xy;\n' +
+'  return length(gl_FragCoord.xy - p) - size;\n' +
+'}\n' +
+'void main() {';
+
 var meshBufVert = 
 '#define TWO_PI 6.28318530718\n' +
 '#define ANGLE_FACTOR 0.15915494309\n' + // 1/TWOPI
@@ -74,21 +97,25 @@ var meshBufFrag =
 '  gl_FragColor = vec4(v_color, 1.);\n' +
 '}';
 
-var isectBufVert = 
-'void main() {\n' +
-'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position.xy, 0.0, 1.0 );\n' +
-'}';
-
 var isectBufFrag = 
+'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
+'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
+'#define ISECT_BUF_WIDTH ' + isectBufferWidth + '\n' +
+'#define ISECT_BUF_HEIGHT ' + isectBufferHeight + '\n' +
+'#define ISECT_DEPTH ' + isectDepth + '\n' +
+'#define ISECT_ANGLES ' + isectAngles + '\n' +
+'#define SHAPES ' + glslFloat(shapeTypes) + '\n' +
+'#define SCENE_WIDTH ' + glslFloat(sceneWidth) + '\n' +
+'#define SCENE_HEIGHT ' + glslFloat(sceneHeight) + '\n' +
+'#define TWO_PI 6.28318530718\n' +
 'uniform sampler2D meshBuffer;\n' +
-'uniform vec2 resolution;\n' +
-// 'varying vec3 v_color;\n' +
-// 'varying vec3 v_position;\n' +
-'void main() {\n' +
-// '  gl_FragColor = texture2D(meshBuffer, gl_FragCoord.xy);\n' +
-// '  if (gl_FragCoord.x > 1024.0) {\n' +
-'  gl_FragColor = vec4(1., 0., 0., 1.);\n' +
-// '  }\n' +
+sdfFragmentShaderPart1 +
+'  vec2 dim = vec2(ISECT_BUF_WIDTH, ISECT_BUF_HEIGHT);\n' +
+'  vec2 pos = gl_FragCoord.xy;\n' +
+'  bvec2 gt = greaterThan(pos, 0.1 * dim);\n' +
+'  bvec2 lt = lessThan(pos, 0.9 * dim);\n' +
+'  float inside = float(all(lt) && all(gt));\n' +
+'  gl_FragColor = inside * vec4(1., 0., 0., 0.) + (1. - inside) * vec4(0., 1., 0., 0.);\n' +
 '}';
 
 var floorVert = 
@@ -102,31 +129,8 @@ var floorFrag =
 'uniform sampler2D isectBuffer;\n' +
 'varying vec2 v_uv;\n' +
 'void main() {\n' +
-' gl_FragColor = texture2D(isectBuffer, v_uv - vec2(0.5));\n' +
+'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
 '}';
-
-var sdfFragmentShaderPart1 =
-'uniform vec2 resolution;\n' +
-'mat2 rotate(float angle) {\n' +
-'  float c = cos(angle);\n' +
-'  float s = sin(angle);\n' +
-'  return mat2(c,-s,\n' +
-'              s,c);\n' +
-'}\n' +
-'float box(vec2 pos, vec2 size, float angle) {\n' +
-'  vec2 p = pos + resolution.xy;\n' +
-'  vec2 v = gl_FragCoord.xy - p;\n' +
-'  v = rotate( angle ) * v;\n' +
-'  v = v + p;\n' +
-'  vec2 b = size / 2.;\n' +
-'  v = max( (p - b) - v,  v - (p + b) );\n' +
-'  return max(v.x, v.y);' +
-'}\n' +
-'float circle(vec2 pos, float size) {\n' +
-'  vec2 p = pos + resolution.xy;\n' +
-'  return length(gl_FragCoord.xy - p) - size;\n' +
-'}\n' +
-'void main() {';
 
 var meshBufTestFrag =
 '#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
@@ -261,22 +265,23 @@ function init() {
 
   // Setup intersection buffer
   isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight);
-  var meshBufMat = new THREE.ShaderMaterial( {
+  var isectBufMat = new THREE.ShaderMaterial( {
     uniforms: { 
       meshBuffer: { type: "t", value: meshBuffer.target.texture },
       resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
-    // vertexShader:    isectBufVert,
     fragmentShader:  isectBufFrag,
     depthTest:       false,
     transparent:     false,
     premultipliedAlpha: false,
   } );
-  isectBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), meshBufMat );
+  isectBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), isectBufMat );
+  isectBuffer.mesh.position.set( isectBufferWidth / 2, isectBufferHeight / 2, 1);
   isectBuffer.scene.add(isectBuffer.mesh);
   // scene.add(isectBuffer.mesh);
 
   // Setup floor
+  // var floorMat2 = new THREE.MeshBasicMaterial( { map: isectBuffer.target.texture } );
   var floorMat = new THREE.ShaderMaterial( {
     uniforms: { 
       isectBuffer: { type: "t", value: isectBuffer.target.texture },
@@ -291,19 +296,7 @@ function init() {
   floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
   // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   scene.add(floor);
-
-
-/*  isectBuffer = {}
-  var material = new THREE.ShaderMaterial( {
-    uniforms: { 
-      meshBuffer: { type: "t", value: meshBuffer.target.texture },
-      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
-    },
-    fragmentShader: meshBufTestFrag,
-    // fragmentShader: makeSdfFragmentShader(),
-    depthTest: false,
-    transparent: true,
-  } );*/
+  floor.position.set(0, 0, 1);
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
