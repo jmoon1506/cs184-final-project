@@ -1,7 +1,7 @@
 var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
-var meshBuffer, isectBuffer;
+var meshBuffer, isectBuffer, floor;
 var showStats = true;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
@@ -75,13 +75,7 @@ var meshBufFrag =
 '}';
 
 var isectBufVert = 
-'uniform sampler2D meshBuffer;\n' +
-'uniform vec2 resolution;\n' +
-'varying vec3 v_color;\n' +
-'varying vec3 v_position;\n' +
 'void main() {\n' +
-// '  v_color = vec3(texture2D(meshBuffer, position.xy / resolution));\n' +
-'  v_position = position;\n' +
 '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position.xy, 0.0, 1.0 );\n' +
 '}';
 
@@ -89,10 +83,26 @@ var isectBufFrag =
 'uniform sampler2D meshBuffer;\n' +
 'uniform vec2 resolution;\n' +
 // 'varying vec3 v_color;\n' +
-'varying vec3 v_position;\n' +
+// 'varying vec3 v_position;\n' +
 'void main() {\n' +
-'  gl_FragColor = texture2D(meshBuffer, v_position.xy / resolution);\n' +
-// '  gl_FragColor = vec4(v_color, 1.);\n' +
+// '  gl_FragColor = texture2D(meshBuffer, gl_FragCoord.xy);\n' +
+// '  if (gl_FragCoord.x > 1024.0) {\n' +
+'  gl_FragColor = vec4(1., 0., 0., 1.);\n' +
+// '  }\n' +
+'}';
+
+var floorVert = 
+'varying vec2 v_uv;\n' +
+'void main() {\n' +
+'  v_uv = uv;\n' +
+'  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+'}';
+
+var floorFrag = 
+'uniform sampler2D isectBuffer;\n' +
+'varying vec2 v_uv;\n' +
+'void main() {\n' +
+' gl_FragColor = texture2D(isectBuffer, v_uv - vec2(0.5));\n' +
 '}';
 
 var sdfFragmentShaderPart1 =
@@ -226,18 +236,62 @@ function init() {
   controls.addEventListener( 'dragstart', dragStartCallback );
   controls.addEventListener( 'dragend', dragendCallback );
 
-  meshBuffer = setupBuffer(meshBufferWidth, meshBufferHeight, meshBufVert, meshBufFrag);
-  meshBuffer.mesh.geometry.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 3 ), 3 ) );
+  // Setup mesh buffer
+  meshBuffer = setupBuffer(meshBufferWidth, meshBufferHeight);
+  var positions = new Float32Array( meshBufferWidth * meshBufferHeight * 3 );
+  for ( var j = 0; j < meshBufferHeight; j++ ) {
+    for ( var i = 0; i < meshBufferWidth; i++ ) {
+      positions[3 * (meshBufferWidth*j+i)] = i + 0.5; // x
+      positions[3 * (meshBufferWidth*j+i) + 1] = j + 0.5; // y
+    }
+  }
+  var meshBufGeom = new THREE.BufferGeometry();
+  meshBufGeom.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+  meshBufGeom.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 3 ), 3 ) );
+  var meshBufMat = new THREE.ShaderMaterial( {
+    vertexShader:    meshBufVert,
+    fragmentShader:  meshBufFrag,
+    depthTest:       false,
+    transparent:     false,
+    premultipliedAlpha: false,
+  } );
+  meshBuffer.mesh = new THREE.Points( meshBufGeom, meshBufMat );
   meshBuffer.scene.add(meshBuffer.mesh);
   // scene.add(meshBuffer.mesh);
 
-/*  isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight, isectBufVert, isectBufFrag);
-  isectBuffer.mesh.material.uniforms = {
-    meshBuffer: { type: "t", value: meshBuffer.target.texture },
-    resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
-  };
-  // isectBuffer.scene.add(isectBuffer.mesh);
-  scene.add(isectBuffer.mesh);*/
+  // Setup intersection buffer
+  isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight);
+  var meshBufMat = new THREE.ShaderMaterial( {
+    uniforms: { 
+      meshBuffer: { type: "t", value: meshBuffer.target.texture },
+      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+    },
+    // vertexShader:    isectBufVert,
+    fragmentShader:  isectBufFrag,
+    depthTest:       false,
+    transparent:     false,
+    premultipliedAlpha: false,
+  } );
+  isectBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), meshBufMat );
+  isectBuffer.scene.add(isectBuffer.mesh);
+  // scene.add(isectBuffer.mesh);
+
+  // Setup floor
+  var floorMat = new THREE.ShaderMaterial( {
+    uniforms: { 
+      isectBuffer: { type: "t", value: isectBuffer.target.texture },
+      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+    },
+    vertexShader:    floorVert,
+    fragmentShader:  floorFrag,
+    depthTest:       false,
+    transparent:     false,
+    premultipliedAlpha: false,
+  } );
+  floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
+  // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
+  scene.add(floor);
+
 
 /*  isectBuffer = {}
   var material = new THREE.ShaderMaterial( {
@@ -251,7 +305,7 @@ function init() {
     transparent: true,
   } );*/
 
-  testMat = new THREE.ShaderMaterial( {
+/*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
       meshBuffer: { type: "t", value: meshBuffer.target.texture },
       resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
@@ -263,7 +317,7 @@ function init() {
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);
+  testMesh.position.set(0, 0, 1);*/
 
   Engine.run(engine);
 };
@@ -276,7 +330,7 @@ function dragendCallback(event) {
   event.object.isBeingDragged = false;
 }
 
-function setupBuffer(width, height, vertexShader, fragmentShader) {
+function setupBuffer(width, height) {
   var buffer = {};
   buffer.camera = new THREE.OrthographicCamera( 0, width, height, 0, -1, 1 );
   buffer.scene = new THREE.Scene();
@@ -288,23 +342,6 @@ function setupBuffer(width, height, vertexShader, fragmentShader) {
       type: THREE.FloatType,
       transparent: false,
     } );
-  var positions = new Float32Array( width * height * 3 );
-  for ( var j = 0; j < height; j++ ) {
-    for ( var i = 0; i < width; i++ ) {
-      positions[3 * (width*j+i)] = i + 0.5; // x
-      positions[3 * (width*j+i) + 1] = j + 0.5; // y
-    }
-  }
-  var geometry = new THREE.BufferGeometry();
-  geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
-  var material = new THREE.ShaderMaterial( {
-    vertexShader:    vertexShader,
-    fragmentShader:  fragmentShader,
-    depthTest:       false,
-    transparent:     true,
-    premultipliedAlpha: false,
-  } );
-  buffer.mesh = new THREE.Points( geometry, material );
   return buffer;
 }
 
@@ -337,6 +374,7 @@ function animate(tick) {
 }
 function render() {
   renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
+  renderer.render( isectBuffer.scene, isectBuffer.camera, isectBuffer.target );
   renderer.render( scene, camera );
   // testMat.fragmentShader = makeSdfFragmentShader();
   // testMat.needsUpdate = true;
@@ -436,7 +474,7 @@ function removeObjects(ids) {
   for (var id in ids) {
     if (meshes[id] == undefined) continue;
     if (meshes[id].physicsBody != undefined)
-    	Matter.Composite.remove(engine.world, meshes[id].physicsBody);
+      Matter.Composite.remove(engine.world, meshes[id].physicsBody);
     meshes[id].geometry.dispose();
     meshes[id].material.dispose();
     scene.remove( meshes[id] );
