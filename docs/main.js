@@ -1,7 +1,7 @@
 var camera, scene, raycaster, renderer, stats, controls, engine;
 var meshes = {}; // { id : mesh }
 var bodies = []; // physics rigidbodies
-var meshBuffer, isectBuffer, floor;
+var isectBuffer, floor;
 var showStats = true;
 var frustumSize = 1000;
 var mouse = new THREE.Vector2();
@@ -10,8 +10,10 @@ var lastTick = 0;
 var shapeTypes = 2;
 var sceneWidth = 2048;
 var sceneHeight = 2048;
-var meshBufferWidth = 4;     // data pixels per object
-var meshBufferHeight = 60;   // max object count
+var maxMeshCount = 60;
+var floatsPerMesh = 10;
+var meshArraySize = floatsPerMesh * maxMeshCount;
+var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 200; // rays per angle
 var isectDepth = 8;         // isects per ray
 var isectAngles = 30;
@@ -37,7 +39,7 @@ function glslColor(rgb, a) {
 }
 
 var sdfFragmentShaderPart1 =
-'uniform vec2 resolution;\n' +
+'uniform vec2 uResolution;\n' +
 'mat2 rotate(float angle) {\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
@@ -45,7 +47,7 @@ var sdfFragmentShaderPart1 =
 '              s,c);\n' +
 '}\n' +
 'float box(vec2 pos, vec2 size, float angle) {\n' +
-'  vec2 p = pos + resolution.xy;\n' +
+'  vec2 p = pos + uResolution.xy;\n' +
 '  vec2 v = gl_FragCoord.xy - p;\n' +
 '  v = rotate( angle ) * v;\n' +
 '  v = v + p;\n' +
@@ -54,12 +56,12 @@ var sdfFragmentShaderPart1 =
 '  return max(v.x, v.y);' +
 '}\n' +
 'float circle(vec2 pos, float size) {\n' +
-'  vec2 p = pos + resolution.xy;\n' +
+'  vec2 p = pos + uResolution.xy;\n' +
 '  return length(gl_FragCoord.xy - p) - size;\n' +
 '}\n' +
 'void main() {';
 
-var meshBufVert = 
+/*var meshBufVert = 
 '#define TWO_PI 6.28318530718\n' +
 '#define ANGLE_FACTOR 0.15915494309\n' + // 1/TWOPI
 '#define SHAPE_FACTOR ' + glslFloat(1 / shapeTypes) + '\n' +
@@ -73,19 +75,15 @@ var meshBufVert =
 '    float x = WIDTH_FACTOR * meshData.y + 0.5;\n' +
 '    float y = HEIGHT_FACTOR * meshData.z + 0.5;\n' +
 '    v_color = vec3(shape, x, y);\n' +
-// '    v_color = vec3(1., 0., 0.);\n' +
 '  } else if (position.x < 1.6) {\n' +
 '    float rotation = meshData.x - TWO_PI * floor(ANGLE_FACTOR * meshData.x);\n' +
 '    float w = WIDTH_FACTOR * meshData.y + 0.5;\n' +
 '    float h = HEIGHT_FACTOR * meshData.z + 0.5;\n' +
 '    v_color = vec3(rotation * ANGLE_FACTOR, w, h);\n' +
-// '    v_color = vec3(0., 1., 0.);\n' +
 '  } else if (position.x < 2.6) {\n' +
 '    v_color = meshData;\n' +
-// '    v_color = vec3(0., 0., 1.);\n' +
 '  } else {\n' +
 '    v_color = meshData;\n' +
-// '    v_color = vec3(1., 1., 1.);\n' +
 '  }\n' +
 '  gl_PointSize = 0.5;\n' +
 '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position.xy, 0.0, 1.0 );\n' +
@@ -98,17 +96,17 @@ var meshBufFrag =
 '}';
 
 var isectBufFrag = 
-'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
-'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
+// '#define MESH_BUF_WIDTH ' + meshArrayWidth + '\n' +
+// '#define MESH_BUF_HEIGHT ' + meshArrayHeight + '\n' +
 '#define ISECT_BUF_WIDTH ' + isectBufferWidth + '\n' +
 '#define ISECT_BUF_HEIGHT ' + isectBufferHeight + '\n' +
 '#define ISECT_DEPTH ' + isectDepth + '\n' +
 '#define ISECT_ANGLES ' + isectAngles + '\n' +
-'#define SHAPES ' + glslFloat(shapeTypes) + '\n' +
+// '#define SHAPES ' + glslFloat(shapeTypes) + '\n' +
 '#define SCENE_WIDTH ' + glslFloat(sceneWidth) + '\n' +
 '#define SCENE_HEIGHT ' + glslFloat(sceneHeight) + '\n' +
 '#define TWO_PI 6.28318530718\n' +
-'uniform sampler2D meshBuffer;\n' +
+'uniform sampler2D meshArray;\n' +
 sdfFragmentShaderPart1 +
 '  vec2 dim = vec2(ISECT_BUF_WIDTH, ISECT_BUF_HEIGHT);\n' +
 '  vec2 pos = gl_FragCoord.xy;\n' +
@@ -116,7 +114,7 @@ sdfFragmentShaderPart1 +
 '  bvec2 lt = lessThan(pos, 0.9 * dim);\n' +
 '  float inside = float(all(lt) && all(gt));\n' +
 '  gl_FragColor = inside * vec4(1., 0., 0., 0.) + (1. - inside) * vec4(0., 1., 0., 0.);\n' +
-'}';
+'}';*/
 
 var floorVert = 
 'varying vec2 v_uv;\n' +
@@ -133,36 +131,23 @@ var floorFrag =
 '}';
 
 var meshBufTestFrag =
-'#define MESH_BUF_WIDTH ' + meshBufferWidth + '\n' +
-'#define MESH_BUF_HEIGHT ' + meshBufferHeight + '\n' +
-'#define SHAPES ' + glslFloat(shapeTypes) + '\n' +
-'#define SCENE_WIDTH ' + glslFloat(sceneWidth) + '\n' +
-'#define SCENE_HEIGHT ' + glslFloat(sceneHeight) + '\n' +
+'#define MAX_MESH_COUNT ' + maxMeshCount + '\n' +
+'#define FLOATS_PER_MESH ' + floatsPerMesh + '\n' +
+'#define MESH_BUF_SIZE ' + meshArraySize + '\n' +
 '#define TWO_PI 6.28318530718\n' +
-'uniform sampler2D meshBuffer;\n' +
+'uniform float uMeshArray[' + meshArraySize + '];\n' +
 sdfFragmentShaderPart1 +
-'  vec2 dim = vec2(SCENE_WIDTH, SCENE_HEIGHT);\n' +
 '  gl_FragColor = vec4(0.0);\n' +
-'  float col0 = 0.5 / float(MESH_BUF_WIDTH);\n' +
-'  float col1 = 1.5 / float(MESH_BUF_WIDTH);\n' +
-'  float col2 = 2.5 / float(MESH_BUF_WIDTH);\n' +
-'  float col3 = 3.5 / float(MESH_BUF_WIDTH);\n' +
-'  for (int j = 0; j < MESH_BUF_HEIGHT; j++) {\n' +
-'    float row = (float(j) + 0.5) / float(MESH_BUF_HEIGHT);\n' +
-'    vec4 pix0 = texture2D(meshBuffer, vec2(col0, row));\n' +
-'    float shape = pix0.x * SHAPES;\n' +
-'    if (shape < 0.1) continue;\n' +
-'    vec4 pix1 = texture2D(meshBuffer, vec2(col1, row));\n' +
-'    vec2 pos = (pix0.yz - 0.5) * dim;\n' +
-'    float rotation = pix1.x * TWO_PI;\n' +
-'    vec2 size = (pix1.yz - 0.5) * dim;\n' +
-'    if ( (shape > 0.99 && shape < 1.01 && box(pos, size, rotation) < 0.0) ||' +
+'  for (int i = 0; i < MESH_BUF_SIZE; i+=FLOATS_PER_MESH) {\n' +
+'    float shape = uMeshArray[i];\n' +
+'    if (shape < 0.1) break;\n' +
+'    float rotation = uMeshArray[i+1];\n' +
+'    vec2 pos = vec2(uMeshArray[i+2], uMeshArray[i+3]);\n' +
+'    vec2 size = vec2(uMeshArray[i+4], uMeshArray[i+5]);\n' +
+'    if ( (shape > 0.99 && shape < 1.01 && box(pos, size, rotation) < 0.0) ||\n' +
 '         (shape > 1.99 && shape < 2.01 && circle(pos, size.x) < 0.0) ) {\n' +
 '      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
 '      break;\n' +
-'    } else {\n' +
-'      vec4 pix3 = texture2D(meshBuffer, vec2(col3, row));\n' +
-'      if (pix3.z > 0.9) break;\n' +
 '    }\n' +
 '  }\n' +
 '}';
@@ -240,18 +225,18 @@ function init() {
   controls.addEventListener( 'dragstart', dragStartCallback );
   controls.addEventListener( 'dragend', dragendCallback );
 
-  // Setup mesh buffer
-  meshBuffer = setupBuffer(meshBufferWidth, meshBufferHeight);
-  var positions = new Float32Array( meshBufferWidth * meshBufferHeight * 3 );
-  for ( var j = 0; j < meshBufferHeight; j++ ) {
-    for ( var i = 0; i < meshBufferWidth; i++ ) {
-      positions[3 * (meshBufferWidth*j+i)] = i + 0.5; // x
-      positions[3 * (meshBufferWidth*j+i) + 1] = j + 0.5; // y
+/*  // Setup mesh buffer
+  meshArray = setupBuffer(meshArrayWidth, meshArrayHeight);
+  var positions = new Float32Array( meshArrayWidth * meshArrayHeight * 3 );
+  for ( var j = 0; j < meshArrayHeight; j++ ) {
+    for ( var i = 0; i < meshArrayWidth; i++ ) {
+      positions[3 * (meshArrayWidth*j+i)] = i + 0.5; // x
+      positions[3 * (meshArrayWidth*j+i) + 1] = j + 0.5; // y
     }
   }
   var meshBufGeom = new THREE.BufferGeometry();
   meshBufGeom.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
-  meshBufGeom.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshBufferWidth * meshBufferHeight * 3 ), 3 ) );
+  meshBufGeom.addAttribute( 'meshData', new THREE.BufferAttribute( new Float32Array( meshArrayWidth * meshArrayHeight * 3 ), 3 ) );
   var meshBufMat = new THREE.ShaderMaterial( {
     vertexShader:    meshBufVert,
     fragmentShader:  meshBufFrag,
@@ -259,16 +244,16 @@ function init() {
     transparent:     false,
     premultipliedAlpha: false,
   } );
-  meshBuffer.mesh = new THREE.Points( meshBufGeom, meshBufMat );
-  meshBuffer.scene.add(meshBuffer.mesh);
-  // scene.add(meshBuffer.mesh);
+  meshArray.mesh = new THREE.Points( meshBufGeom, meshBufMat );
+  meshArray.scene.add(meshArray.mesh);
+  // scene.add(meshArray.mesh);*/
 
-  // Setup intersection buffer
+/*  // Setup intersection buffer
   isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight);
   var isectBufMat = new THREE.ShaderMaterial( {
     uniforms: { 
-      meshBuffer: { type: "t", value: meshBuffer.target.texture },
-      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+      meshArray: { type: "t", value: meshArray.target.texture },
+      uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
     fragmentShader:  isectBufFrag,
     depthTest:       false,
@@ -278,14 +263,13 @@ function init() {
   isectBuffer.mesh = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), isectBufMat );
   isectBuffer.mesh.position.set( isectBufferWidth / 2, isectBufferHeight / 2, 1);
   isectBuffer.scene.add(isectBuffer.mesh);
-  // scene.add(isectBuffer.mesh);
+  // scene.add(isectBuffer.mesh);*/
 
-  // Setup floor
-  // var floorMat2 = new THREE.MeshBasicMaterial( { map: isectBuffer.target.texture } );
+/*  // Setup floor
   var floorMat = new THREE.ShaderMaterial( {
     uniforms: { 
       isectBuffer: { type: "t", value: isectBuffer.target.texture },
-      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+      uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
     vertexShader:    floorVert,
     fragmentShader:  floorFrag,
@@ -296,12 +280,13 @@ function init() {
   floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
   // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   scene.add(floor);
-  floor.position.set(0, 0, 1);
+  floor.position.set(0, 0, 1);*/
 
-/*  testMat = new THREE.ShaderMaterial( {
+  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
-      meshBuffer: { type: "t", value: meshBuffer.target.texture },
-      resolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+      // meshArray: { type: "t", value: meshArray.target.texture },
+      uMeshArray: { type: "fv1", value: meshArray },
+      uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
     fragmentShader: meshBufTestFrag,
     // fragmentShader: makeSdfFragmentShader(),
@@ -310,7 +295,7 @@ function init() {
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);*/
+  testMesh.position.set(0, 0, 1);
 
   Engine.run(engine);
 };
@@ -356,9 +341,9 @@ function animate(tick) {
   }
 /*  if(!lastTick || tick - lastTick >= 500) {
     lastTick = tick;
-    updateMeshBuffer();
+    updateMeshArray();
   }*/
-  updateMeshBuffer();
+  updateMeshArray();
   render();
 
   if (showStats) {
@@ -366,21 +351,42 @@ function animate(tick) {
   }
 }
 function render() {
-  renderer.render( meshBuffer.scene, meshBuffer.camera, meshBuffer.target );
-  renderer.render( isectBuffer.scene, isectBuffer.camera, isectBuffer.target );
+  // renderer.render( meshArray.scene, meshArray.camera, meshArray.target );
+  // renderer.render( isectBuffer.scene, isectBuffer.camera, isectBuffer.target );
   renderer.render( scene, camera );
   // testMat.fragmentShader = makeSdfFragmentShader();
   // testMat.needsUpdate = true;
 }
 
-function updateMeshBuffer() {
-  var meshData = meshBuffer.mesh.geometry.attributes.meshData;
+function updateMeshArray() {
+  meshArray.fill(0);
+  var k = 0;
+  for (var id in meshes) {
+    var m = meshes[id];
+    if (m == undefined) continue;
+    var start = k * floatsPerMesh;
+    meshArray[start] = m.shape;
+    meshArray[start+1] = m.rotation.z;
+    meshArray[start+2] = m.position.x;
+    meshArray[start+3] = m.position.y;
+    meshArray[start+4] = m.size.x;
+    meshArray[start+5] = m.size.y;
+    meshArray[start+6] = m.emission.r;
+    meshArray[start+7] = m.emission.g;
+    meshArray[start+8] = m.emission.b;
+    meshArray[start+9] = m.emission.a;
+    k++;
+  }
+}
+
+/*function updateMeshArray() {
+  var meshData = meshArray.mesh.geometry.attributes.meshData;
   meshData.array.fill(0);
   var h;
-  for (var j = 0; j < meshBufferHeight; j++) {
+  for (var j = 0; j < meshArrayHeight; j++) {
     var m = meshes[j];
     if (m == undefined) continue;
-    h = 3 * meshBufferWidth * j;
+    h = 3 * meshArrayWidth * j;
     meshData.array[h] = m.shape;
     meshData.array[h+1] = m.position.x;
     meshData.array[h+2] = m.position.y;
@@ -396,7 +402,7 @@ function updateMeshBuffer() {
   }
   meshData.array[h+11] = 1; // flag last object so shader can exit early
   meshData.needsUpdate = true;
-}
+}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // Objects
@@ -476,7 +482,7 @@ function removeObjects(ids) {
 }
 
 function getNextMeshId() {
-  for (var i = 0; i < meshBufferHeight; i++) {
+  for (var i = 0; i < maxMeshCount; i++) {
     if (meshes[i] == undefined) return i;
   }
   throw "Could not find an empty index in the mesh buffer!";
