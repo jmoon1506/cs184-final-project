@@ -97,6 +97,7 @@ var isectBufFrag =
 '#define ISECT_BUF_WIDTH ' + isectBufferWidth + '\n' +
 '#define ISECT_BUF_HEIGHT ' + isectBufferHeight + '\n' +
 '#define ISECT_DEPTH ' + isectDepth + '\n' +
+'#define F_MAX_MESH_COUNT ' + glslFloat(maxMeshCount) + '\n' +
 '#define F_FLOATS_PER_MESH ' + glslFloat(floatsPerMesh) + '\n' +
 '#define F_ISECT_BUF_WIDTH ' + glslFloat(isectBufferWidth) + '\n' +
 '#define F_ISECT_DEPTH ' + glslFloat(isectDepth) + '\n' +
@@ -107,12 +108,7 @@ var isectBufFrag =
 '#define TWO_PI 6.28318530718\n' +
 '#define EPS 0.000001\n' +
 'uniform float uMeshArray[' + meshArraySize + '];\n' +
-/*'float when_lt(float x, float y) {\n' +
-'  return max(sign(y - x), 0.0);\n' +
-'}\n' +
-'float when_gt(float x, float y) {\n' +
-'  return max(sign(x - y), 0.0);\n' +
-'}\n' +*/
+
 'vec4 rotate(vec2 pos, float angle) {\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
@@ -122,6 +118,7 @@ var isectBufFrag =
 '}\n' +
 'vec2 isectRect(vec2 rayOrigin, float rayAngle, vec2 rectMin, vec2 rectMax, float rectAngle) {\n' +
 '  vec4 adjRay = rotate(rayOrigin, rayAngle-rectAngle);\n' +
+'  if (abs(adjRay.z) < EPS || abs(adjRay.w) < EPS) return vec2(-1.);\n' +
 '  vec2 invDir = vec2(1.) / adjRay.zw;\n' +
 '  float tx1 = (rectMin.x - adjRay.x)*invDir.x;\n' +
 '  float tx2 = (rectMax.x - adjRay.x)*invDir.x;\n' +
@@ -145,9 +142,10 @@ var isectBufFrag =
 '  float root = sqrt(b2_4ac);\n' +
 '  return b2_4ac < EPS ? vec2(-1.) : vec2((-b-root)/(2.*a), (-b+root)/(2.*a));\n' +
 '}\n' +
-'vec3 getIntersect(float rayAngle, float rayOffset, int isectDepth) {\n' +
+
+'vec2 getIntersect(float rayAngle, float rayOffset, int isectDepth) {\n' +
 '  vec2 rayOrigin = vec2(-HALF_SCENE_SIZE, -HALF_SCENE_SIZE+rayOffset);\n' +
-'  vec2 intersects[ISECT_DEPTH];\n' +
+'  vec2 isects[ISECT_DEPTH];\n' +
 '  for (int i = 0; i < MESH_ARR_SIZE; i+=FLOATS_PER_MESH) {\n' +
 '    float shape = uMeshArray[i];\n' +
 '    if (shape > 9.9) break;\n' +
@@ -156,45 +154,64 @@ var isectBufFrag =
 '    vec2 pos = vec2(uMeshArray[i+2], uMeshArray[i+3]);\n' +
 '    vec2 size = vec2(uMeshArray[i+4], uMeshArray[i+5]);\n' +
 '    vec2 dists;\n' +
-      // dists = when_lt(abs(shape-1.),EPS) * isectRect(rayOrigin, rayAngle, pos-0.5*size, pos+0.5*size, angle);
-      // dists = when_lt(abs(shape-2.),EPS) * isectCircle(rayOrigin, rayAngle, pos, size.x);
 '    if (shape > 0.99 && shape < 1.01) {\n' +
 '      vec2 halfsize = 0.5 * size;\n' +
 '      dists = isectRect(rayOrigin, rayAngle, pos-halfsize, pos+halfsize, angle);\n' +
 '    } else if (shape > 1.99 && shape < 2.01) {\n' +
 '      dists = isectCircle(rayOrigin, rayAngle, pos, size.x);\n' +
 '    }\n' +
-// '    intersects[0] = max(when_lt(intersects[0].y, dists.x) * vec2(floor(float(i)/F_FLOATS_PER_MESH), dists.x), intersects[0]);\n' +
 '    float meshId = floor(float(i)/F_FLOATS_PER_MESH);\n' +
 '    vec2 lo = vec2(meshId, min(dists.x, dists.y));\n' +
 '    vec2 hi = vec2(meshId, max(dists.x, dists.y));\n' +
 '    vec2 temp;\n' +
 
 (function(){
+  var i = isectDepth-1;
   var sortString = 
-'    if (hi.y < intersects['+(isectDepth-1)+'].y) continue;\n' +
-'    intersects['+(isectDepth-1)+'] = hi;\n';
-  for (var i = isectDepth-2; i >= 0; i--) {
+'    for (int j = 0; j < 2; j++) {\n' +
+'      vec2 current = j == 0 ? lo : hi;\n' +
+'      if (current.y > isects['+i+'].y && isects['+i+'].x > EPS) continue;\n' +
+'      isects['+i+'] = current;\n';
+  for (i = isectDepth-2; i >= 0; i--) {
     sortString += 
-'    if (intersects['+(i+1)+'].y < intersects['+i+'].y) continue;\n' +
-'    temp = intersects['+i+'];\n' +
-'    intersects['+i+'] = intersects['+(i+1)+'];\n' +
-'    intersects['+(i+1)+'] = temp;\n';
+'      if (isects['+(i+1)+'].y > isects['+i+'].y && isects['+i+'].x > EPS) continue;\n' +
+'      temp = isects['+i+'];\n' +
+'      isects['+i+'] = isects['+(i+1)+'];\n' +
+'      isects['+(i+1)+'] = temp;\n';
   }
+  sortString += 
+'    }\n';
   // console.log(sortString);
   return sortString;
 })() +
 
 '  }\n' +
-'  return vec3(0.);\n' +
+'  vec2 intersect;\n' +
+
+(function(){
+  var iterString =
+'  for (int j = 0; j < 1; j++) {\n';
+  for (var i = 0; i < isectDepth; i++) {
+    iterString += 
+'    if ('+i+' > isectDepth || isects['+i+'].x < EPS) break;\n' +
+'    intersect = isects['+i+'];\n';
+  }
+  iterString += 
+'  }\n';
+  // console.log(iterString);
+  return iterString;
+})() +
+
+'  return intersect;\n' +
 '}\n' +
+
 'void main() {\n' +
 '  vec2 pos = gl_FragCoord.xy;\n' +
 '  float angle = PI * (floor(pos.y / F_ISECT_DEPTH) / F_ISECT_ANGLES);\n' + // TODO: replace division and mod with bitwise ops
 '  float offset = SCENE_SIZE * (floor(pos.x) / F_ISECT_BUF_WIDTH);\n' +
 '  int depth = int(mod(floor(pos.y), F_ISECT_DEPTH));\n' +
-'  vec3 isectData = getIntersect(angle, offset, depth);\n' +
-'  gl_FragColor = vec4(1., 0., 0., 1.);\n' +
+'  vec2 isectData = getIntersect(angle, offset, depth);\n' +
+'  gl_FragColor = vec4(isectData.x / F_MAX_MESH_COUNT, isectData.y / SCENE_SIZE, 0., 1.);\n' +
 '}';
 
 /*'  vec2 dim = vec2(ISECT_BUF_WIDTH, ISECT_BUF_HEIGHT);\n' +
@@ -249,6 +266,7 @@ var meshBufTestFrag =
 '  gl_FragColor = vec4(0.0);\n' +
 '  for (int i = 0; i < MESH_ARR_SIZE; i+=FLOATS_PER_MESH) {\n' +
 '    float shape = uMeshArray[i];\n' +
+'    if (shape > 9.9) break;\n' +
 '    if (shape < 0.1) continue;\n' +
 '    float rotation = uMeshArray[i+1];\n' +
 '    vec2 pos = vec2(uMeshArray[i+2], uMeshArray[i+3]);\n' +
@@ -257,7 +275,7 @@ var meshBufTestFrag =
 '         (shape > 1.99 && shape < 2.01 && circle(gl_FragCoord.xy, pos, size.x) < 0.0) ) {\n' +
 '      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n' +
 '      break;\n' +
-'    } else if (uMeshArray[i+10] > 0.9) break;\n' +
+'    }\n' +
 '  }\n' +
 '}';
 
