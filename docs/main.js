@@ -8,16 +8,15 @@ var mouse = new THREE.Vector2();
 var lastTick = 0;
 
 var shapeTypes = 2;
-var sceneWidth = 2048;
-var sceneHeight = 2048;
+var sceneSize = 2048; // scale for pixel encoding, max raymarch distance
 var maxMeshCount = 60;
 var floatsPerMesh = 11;  // shape, rotation, x, y, w, h, r, g, b, a, endFlag
 var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectSceneWidth = 1024;
 var isectBufferWidth = 200; // rays per angle
-var isectDepth = 8;         // isects per ray
-var isectAngles = 30;
+var isectDepth = 32;         // isects per ray
+var isectAngles = 8;
 var isectBufferHeight = isectAngles * isectDepth;
 
 var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies, Body = Matter.Body;
@@ -34,33 +33,6 @@ function glslFloat(val) {
 function glslVector2(vec) {
   return glslFloat(vec.x) + ',' + glslFloat(vec.y);
 }
-
-function glslColor(rgb, a) {
-  return glslFloat(1) + ',' + glslFloat(0) + ',' + glslFloat(0) + ',' + glslFloat(a);
-}
-
-var sdfFunctions =
-'uniform vec2 uResolution;\n' +
-'mat2 rotate(float angle) {\n' +
-'  float c = cos(angle);\n' +
-'  float s = sin(angle);\n' +
-'  return mat2(c,-s,\n' +
-'              s,c);\n' +
-'}\n' +
-'float rect(vec2 pos, vec2 rect_pos, vec2 rect_size, float rect_angle) {\n' +
-'  vec2 p = rect_pos + uResolution.xy;\n' +
-'  vec2 v = pos - p;\n' +
-'  v = rotate( rect_angle ) * v;\n' +
-'  v = v + p;\n' +
-'  vec2 b = rect_size / 2.;\n' +
-'  v = max( (p - b) - v,  v - (p + b) );\n' +
-'  return max(v.x, v.y);' +
-'}\n' +
-'float circle(vec2 pos, vec2 circle_pos, float circle_radius) {\n' +
-'  vec2 p = circle_pos + uResolution.xy;\n' +
-'  return length(pos - p) - circle_radius;\n' +
-'}\n';
-
 
 /*var meshBufVert = 
 '#define TWO_PI 6.28318530718\n' +
@@ -124,43 +96,68 @@ var isectBufFrag =
 '#define ISECT_BUF_WIDTH ' + isectBufferWidth + '\n' +
 '#define ISECT_BUF_HEIGHT ' + isectBufferHeight + '\n' +
 '#define ISECT_DEPTH ' + isectDepth + '\n' +
-'#define ISECT_ANGLES ' + isectAngles + '\n' +
-'#define MAX_RAYMARCH ' + Math.round(maxMeshCount/2) + '\n' +
-// '#define SHAPES ' + glslFloat(shapeTypes) + '\n' +
-// '#define SCENE_WIDTH ' + glslFloat(sceneWidth) + '\n' +
-// '#define SCENE_HEIGHT ' + glslFloat(sceneHeight) + '\n' +
+'#define F_ISECT_BUF_WIDTH ' + glslFloat(isectBufferWidth) + '\n' +
+'#define F_ISECT_DEPTH ' + glslFloat(isectDepth) + '\n' +
+'#define ISECT_ANGLES ' + glslFloat(isectAngles) + '\n' +
+'#define SCENE_SIZE ' + glslFloat(sceneSize) + '\n' +
+'#define HALF_SCENE_SIZE ' + glslFloat(sceneSize/2) + '\n' +
 '#define TWO_PI 6.28318530718\n' +
-'uniform sampler2D meshArray;\n' +
-sdfFunctions +
-'float sceneDistance(vec2 pos) {\n' +
-'  float dist = 1000.;\n' +
-'  for (int i = 0; i < MESH_ARR_SIZE; i+=FLOATS_PER_MESH) {\n' +
-'    float shape_type = uMeshArray[i];\n' +
-'    if (shape_type < 0.1) break;\n' +
-'    float shape_angle = uMeshArray[i+1];\n' +
-'    vec2 shape_pos = vec2(uMeshArray[i+2], uMeshArray[i+3]);\n' +
-'    vec2 shape_size = vec2(uMeshArray[i+4], uMeshArray[i+5]);\n' +
-'    if (shape > 0.99 && shape < 1.01) dist = min(dist, box(shape_pos, shape_size, shape_angle));\n' +
-'    else if (shape > 1.99 && shape < 2.01) dist = min(dist, circle(shape_pos, shape_size.x));\n' +
-/*    dist = max(0., 2.-shape) * min(dist, box(pos, size, rotation));
-    dist = (max(0., shape-1.) / max(1., shape-1.)) * min(dist, circle(pos, size.x));*/
-'  }\n' +
-'  return dist;\n' +
+'#define EPS 0.001\n' +
+'uniform float uMeshArray[' + meshArraySize + '];\n' +
+'struct intersect {\n' +
+'  int meshId;\n' +
+'  float distance;\n' +
+'};\n' +
+'vec2 isectRect(vec2 ray_orig, vec2 ray_dir, vec2 rect_min, vec2 rect_max, float rect_angle) {\n' +
+'  return vec2(0.);\n' +
 '}\n' +
-'float rayMarch(float rayAngle, float rayOffset, float depth) {\n' +
-'  float \n' +
-'  for (int i = 0; i < MAX_RAYMARCH; i++) {\n' +
-     
+'vec2 isectCircle(vec2 ray_orig, vec2 ray_dir, vec2 circle_pos, float circle_radius) {\n' +
+'  return vec2(0.);\n' +
+'}\n' +
+'vec3 getIntersect(float rayAngle, float rayOffset, float isectDepth) {\n' +
+'  float c = cos(rayAngle);\n' +
+'  float s = sin(rayAngle);\n' +
+'  vec2 dir = vec2(c, s);\n' +
+'  float x = -HALF_SCENE_SIZE;\n' +
+'  float y = -HALF_SCENE_SIZE+rayOffset;\n' +
+'  vec2 orig = vec2(x*c-y*s, x*s+y*c);\n' +
+'  intersect intersects[2*MAX_MESH_COUNT];\n' +
+'  for (int i = 0; i < MESH_ARR_SIZE; i+=FLOATS_PER_MESH) {\n' +
+'    float shape = uMeshArray[i];\n' +
+'    if (shape < 0.1) continue;\n' +
+'    float angle = uMeshArray[i+1];\n' +
+'    vec2 pos = vec2(uMeshArray[i+2], uMeshArray[i+3]);\n' +
+'    vec2 size = vec2(uMeshArray[i+4], uMeshArray[i+5]);\n' +
+'    int meshId = i/FLOATS_PER_MESH;\n' +
+'    vec2 dists;\n' +
+'    if (shape > 0.99 && shape < 1.01) {\n' +
+'      vec2 halfsize = 0.5 * size;\n' +
+'      dists = isectRect(orig, dir, pos-halfsize, pos+halfsize, angle);\n' +
+'    } else if (shape > 1.99 && shape < 2.01) {\n' +
+'      dists = isectCircle(orig, dir, pos, size.x);\n' +
+'    }\n' +
+'    intersects[2*(i/FLOATS_PER_MESH)] = intersect(meshId, dists.x);\n' +
+'    intersects[2*(i/FLOATS_PER_MESH)+1] = intersect(meshId, dists.y);\n' +
+'    if (uMeshArray[i+10] > 0.9) break;\n' +
 '  }\n' +
+'  return vec3(0.);\n' +
 '}\n' +
 'void main() {\n' +
-'  vec2 dim = vec2(ISECT_BUF_WIDTH, ISECT_BUF_HEIGHT);\n' +
+'  vec2 pos = gl_FragCoord.xy;\n' +
+'  float angle = floor(pos.y / F_ISECT_DEPTH);\n' + // TODO: replace division and mod with bitwise ops
+'  float offset = floor(pos.x) * SCENE_SIZE / F_ISECT_BUF_WIDTH;\n' +
+'  float depth = floor(mod(pos.y, F_ISECT_DEPTH));\n' +
+'  vec3 isectData = getIntersect(angle, offset, depth);\n' +
+'  gl_FragColor = vec4(1., 0., 0., 1.);\n' +
+'}';
+
+/*'  vec2 dim = vec2(ISECT_BUF_WIDTH, ISECT_BUF_HEIGHT);\n' +
 '  vec2 pos = gl_FragCoord.xy;\n' +
 '  bvec2 gt = greaterThan(pos, 0.1 * dim);\n' +
 '  bvec2 lt = lessThan(pos, 0.9 * dim);\n' +
 '  float inside = float(all(lt) && all(gt));\n' +
 '  gl_FragColor = inside * vec4(1., 0., 0., 0.) + (1. - inside) * vec4(0., 1., 0., 0.);\n' +
-'}';
+'}';*/
 
 var floorVert = 
 'varying vec2 v_uv;\n' +
@@ -180,10 +177,28 @@ var meshBufTestFrag =
 '#define MAX_MESH_COUNT ' + maxMeshCount + '\n' +
 '#define FLOATS_PER_MESH ' + floatsPerMesh + '\n' +
 '#define MESH_ARR_SIZE ' + meshArraySize + '\n' +
-'#define EPS 0.01\n' +
 '#define TWO_PI 6.28318530718\n' +
 'uniform float uMeshArray[' + meshArraySize + '];\n' +
-sdfFunctions +
+'uniform vec2 uResolution;\n' +
+'mat2 rotate(float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  return mat2(c,-s,\n' +
+'              s,c);\n' +
+'}\n' +
+'float rect(vec2 pos, vec2 rect_pos, vec2 rect_size, float rect_angle) {\n' +
+'  vec2 p = rect_pos + uResolution.xy;\n' +
+'  vec2 v = pos - p;\n' +
+'  v = rotate( rect_angle ) * v;\n' +
+'  v = v + p;\n' +
+'  vec2 b = rect_size / 2.;\n' +
+'  v = max( (p - b) - v,  v - (p + b) );\n' +
+'  return max(v.x, v.y);' +
+'}\n' +
+'float circle(vec2 pos, vec2 circle_pos, float circle_radius) {\n' +
+'  vec2 p = circle_pos + uResolution.xy;\n' +
+'  return length(pos - p) - circle_radius;\n' +
+'}\n' +
 'void main() {\n' +
 '  gl_FragColor = vec4(0.0);\n' +
 '  for (int i = 0; i < MESH_ARR_SIZE; i+=FLOATS_PER_MESH) {\n' +
@@ -199,38 +214,6 @@ sdfFunctions +
 '    } else if (uMeshArray[i+10] > 0.9) break;\n' +
 '  }\n' +
 '}';
-
-var sdfCircle = function(position, size, color) { return '' +
-'  if (circle(vec2(' + glslVector2(position) + '), ' + glslFloat(size) + ') < 1.0) {' +
-'    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
-}
-
-var sdfBox = function(position, size, angle, color) { return '' +
-'  if (box(vec2(' + glslVector2(position) + '), vec2(' + glslVector2(size) + '), ' + glslFloat(angle) + ') < 1.0) {' +
-'    gl_FragColor = vec4(' + glslColor(color, 1) + '); }';
-}
-
-function makeSdfFragmentShader() {
-  var sdfFragmentShaderPart2 = '';
-  var prefix = '';
-  var empty = true;
-  for (var id in meshes) {
-    var m = meshes[id]
-    if (m == undefined) continue;
-    if (m.shape < 0.1) continue;
-    else if (m.shape < 1.1) {
-      sdfFragmentShaderPart2 += prefix + sdfBox(m.position, new THREE.Vector2(m.geometry.parameters.width, m.geometry.parameters.height), 
-        m.rotation.z, m.material.color);
-      prefix = ' else ';
-      empty = false;
-    }
-  }
-  if (empty) {
-    return sdfFunctions + 'void main() {\n gl_FragColor = vec4(0., 0., 0., 0.); }';
-  } else {
-    return sdfFunctions + 'void main() {\n' + sdfFragmentShaderPart2 + ' else { gl_FragColor = vec4(0., 0., 0., 0.); } }';
-  }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Main Program
@@ -272,12 +255,12 @@ function init() {
   var controls = new THREE.DragControls( nonStaticMeshes, camera, renderer.domElement );
   controls.addEventListener( 'dragstart', dragStartCallback );
   controls.addEventListener( 'dragend', dragendCallback );
-/*
+
   // Setup intersection buffer
   isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight);
   var isectBufMat = new THREE.ShaderMaterial( {
     uniforms: { 
-      meshArray: { type: "t", value: meshArray.target.texture },
+      uMeshArray: { type: "fv1", value: meshArray },
       uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
     fragmentShader:  isectBufFrag,
@@ -305,22 +288,20 @@ function init() {
   floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
   // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   scene.add(floor);
-  floor.position.set(0, 0, 1);*/
+  floor.position.set(0, 0, 1);
 
-  testMat = new THREE.ShaderMaterial( {
+/*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
-      // meshArray: { type: "t", value: meshArray.target.texture },
       uMeshArray: { type: "fv1", value: meshArray },
       uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
     fragmentShader: meshBufTestFrag,
-    // fragmentShader: makeSdfFragmentShader(),
     depthTest: false,
     transparent: true,
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);
+  testMesh.position.set(0, 0, 1);*/
 
   Engine.run(engine);
 };
@@ -376,11 +357,8 @@ function animate(tick) {
   }
 }
 function render() {
-  // renderer.render( meshArray.scene, meshArray.camera, meshArray.target );
-  // renderer.render( isectBuffer.scene, isectBuffer.camera, isectBuffer.target );
+  renderer.render( isectBuffer.scene, isectBuffer.camera, isectBuffer.target );
   renderer.render( scene, camera );
-  // testMat.fragmentShader = makeSdfFragmentShader();
-  // testMat.needsUpdate = true;
 }
 
 function updateMeshArray() {
@@ -403,31 +381,6 @@ function updateMeshArray() {
   }
   meshArray[start+10] = 1; // end flag
 }
-
-/*function updateMeshArray() {
-  var meshData = meshArray.mesh.geometry.attributes.meshData;
-  meshData.array.fill(0);
-  var h;
-  for (var j = 0; j < meshArrayHeight; j++) {
-    var m = meshes[j];
-    if (m == undefined) continue;
-    h = 3 * meshArrayWidth * j;
-    meshData.array[h] = m.shape;
-    meshData.array[h+1] = m.position.x;
-    meshData.array[h+2] = m.position.y;
-    meshData.array[h+3] = m.rotation.z;
-    meshData.array[h+4] = m.size.x;
-    meshData.array[h+5] = m.size.y;
-    meshData.array[h+6] = 0;
-    meshData.array[h+7] = 0;
-    meshData.array[h+8] = 0;
-    meshData.array[h+9] = 0;
-    meshData.array[h+10] = 0;
-    meshData.array[h+11] = 0;
-  }
-  meshData.array[h+11] = 1; // flag last object so shader can exit early
-  meshData.needsUpdate = true;
-}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // Objects
@@ -507,7 +460,7 @@ function removeObjects(ids) {
 }
 
 function getNextMeshId() {
-  for (var i = 0; i < maxMeshCount; i++) {
+  for (var i = 1; i < maxMeshCount; i++) {
     if (meshes[i] == undefined) return i;
   }
   throw "Could not find an empty index in the mesh buffer!";
