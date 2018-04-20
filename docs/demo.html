@@ -36,5 +36,24 @@
 <script type="text/javascript" src="main.js"></script>
 <button onclick="javascript:removeObjects();addObjects(defaultObjectParams());">Default scene</button>
 <button onclick="javascript:removeObjects()">Clear scene</button>
+<br>
+<!--
+<form id="frm1" action="">
+  Circle Radius: <input type="text" name="radius">
+  <input type="button" onclick="" value="Add Circle">
+</form>
+<form id="frm2" action="">
+  Square Width: <input type="text" name="width">
+  Square Height: <input type="text" name="height">
+  <input type="button" onclick="" value="Add Square">
+</form>
+-->
+<form>
+  Circle Radius: <input type="text" name="radius">
+  <input type="button" onclick="javascript:addObjects(newCircleParams());" value="Add Circle"><br>
+  Square Width: <input type="text" name="width">
+  Square Height: <input type="text" name="height">
+  <input type="button" onclick="javascript:addObjects(newSquareParams());" value="Add Square">
+</form>  
 </body>
 </html>

@@ -592,6 +592,23 @@ function defaultObjectParams() {
   return objectParams;
 }
 
+function newSquareParams() {
+  var objectParams = [];
+  var width = document.getElementsByName("width")[0].value;
+  var height = document.getElementsByName("height")[0].value;
+  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 0), 'size':new THREE.Vector2(width, height), 
+                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  return objectParams;
+}
+
+function newCircleParams() {
+  var objectParams = [];
+  var radius = document.getElementsByName("radius")[0].value;
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(0, 0), 'radius':radius, 
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  return objectParams;
+}
+
 function hexToRGBA(hex) {
   if (hex.length == 4) hex += 'f';
   else if (hex.length == 7) hex += 'ff';
