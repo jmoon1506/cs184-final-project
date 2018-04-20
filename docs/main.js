@@ -91,7 +91,6 @@ sdfFunctions +
 
 var isectBufFrag = 
 '#define MAX_MESH_COUNT ' + maxMeshCount + '\n' +
-// '#define MAX_MESH_COUNT_X2 ' + 2*maxMeshCount + '\n' +
 '#define FLOATS_PER_MESH ' + floatsPerMesh + '\n' +
 '#define MESH_ARR_SIZE ' + meshArraySize + '\n' +
 '#define ISECT_BUF_WIDTH ' + isectBufferWidth + '\n' +
@@ -189,17 +188,17 @@ var isectBufFrag =
 '  vec2 intersect;\n' +
 
 (function(){
-  var iterString =
+  var depthString =
 '  for (int j = 0; j < 1; j++) {\n';
   for (var i = 0; i < isectDepth; i++) {
-    iterString += 
-'    if ('+i+' > isectDepth || isects['+i+'].x < EPS) break;\n' +
-'    intersect = isects['+i+'];\n';
+    depthString += 
+'    intersect = isects['+i+'];\n' +
+'    if ('+(i+1)+' > isectDepth || intersect.x < EPS) break;\n';
   }
-  iterString += 
+  depthString += 
 '  }\n';
-  // console.log(iterString);
-  return iterString;
+  // console.log(depthString);
+  return depthString;
 })() +
 
 '  return intersect;\n' +
@@ -230,6 +229,7 @@ var floorVert =
 '}';
 
 var floorFrag = 
+'#define F_ISECT_ANGLES ' + glslFloat(isectAngles) + '\n' +
 'uniform sampler2D isectBuffer;\n' +
 'varying vec2 v_uv;\n' +
 'void main() {\n' +
