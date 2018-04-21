@@ -8,12 +8,11 @@ var mouse = new THREE.Vector2();
 var lastTick = 0;
 
 var shapeTypes = 2;
-var sceneSize = 2048; // scale for pixel encoding, max raymarch distance
+var sceneSize = 1024; // scale for pixel encoding, max raymarch distance
 var maxMeshCount = 32;
 var floatsPerMesh = 10;  // shape, rotation, x, y, w, h, r, g, b, a
 var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
-var isectSceneWidth = 1024;
 var isectBufferWidth = 200; // rays per angle
 var isectDepth = 8;         // isects per ray
 var isectAngles = 32;
@@ -104,8 +103,7 @@ var isectBufFrag =
 '#define SCENE_SIZE ' + glslFloat(sceneSize) + '\n' +
 '#define HALF_SCENE_SIZE ' + glslFloat(sceneSize/2) + '\n' +
 '#define PI 3.14159265359\n' +
-'#define TWO_PI 6.28318530718\n' +
-'#define EPS 0.000001\n' +
+'#define EPS 0.0001\n' +
 'uniform float uMeshArray[' + meshArraySize + '];\n' +
 
 'vec4 rotate(vec2 pos, float angle) {\n' +
@@ -213,14 +211,6 @@ var isectBufFrag =
 '  gl_FragColor = vec4(isectData.x / F_MAX_MESH_COUNT, isectData.y / SCENE_SIZE, 0., 1.);\n' +
 '}';
 
-/*'  vec2 dim = vec2(ISECT_BUF_WIDTH, ISECT_BUF_HEIGHT);\n' +
-'  vec2 pos = gl_FragCoord.xy;\n' +
-'  bvec2 gt = greaterThan(pos, 0.1 * dim);\n' +
-'  bvec2 lt = lessThan(pos, 0.9 * dim);\n' +
-'  float inside = float(all(lt) && all(gt));\n' +
-'  gl_FragColor = inside * vec4(1., 0., 0., 0.) + (1. - inside) * vec4(0., 1., 0., 0.);\n' +
-'}';*/
-
 var floorVert = 
 'varying vec2 v_uv;\n' +
 'void main() {\n' +
@@ -229,11 +219,77 @@ var floorVert =
 '}';
 
 var floorFrag = 
+'#define MAX_MESH_COUNT ' + maxMeshCount + '\n' +
+'#define FLOATS_PER_MESH ' + floatsPerMesh + '\n' +
+'#define MESH_ARR_SIZE ' + meshArraySize + '\n' +
+'#define ISECT_BUF_WIDTH ' + isectBufferWidth + '\n' +
+'#define ISECT_BUF_HEIGHT ' + isectBufferHeight + '\n' +
+'#define ISECT_DEPTH ' + isectDepth + '\n' +
+'#define F_MAX_MESH_COUNT ' + glslFloat(maxMeshCount) + '\n' +
+'#define F_FLOATS_PER_MESH ' + glslFloat(floatsPerMesh) + '\n' +
+'#define F_ISECT_BUF_WIDTH ' + glslFloat(isectBufferWidth) + '\n' +
+'#define F_ISECT_DEPTH ' + glslFloat(isectDepth) + '\n' +
 '#define F_ISECT_ANGLES ' + glslFloat(isectAngles) + '\n' +
+'#define SCENE_SIZE ' + glslFloat(sceneSize) + '\n' +
+'#define HALF_SCENE_SIZE ' + glslFloat(sceneSize/2) + '\n' +
+
+'#define ISECT_ANGLES ' + isectAngles + '\n' +
+'#define F_ISECT_ANGLES ' + glslFloat(isectAngles) + '\n' +
+'#define PI 3.14159265359\n' +
+'#define EPS 0.0001\n' +
+'uniform float uMeshArray[' + meshArraySize + '];\n' +
 'uniform sampler2D isectBuffer;\n' +
+'uniform vec2 uResolution;\n' +
 'varying vec2 v_uv;\n' +
+
+'vec4 getEmission(int meshId) {\n' +
+'  vec4 emission;\n' +
+(function(){
+  var meshString =
+'  for (int j = 0; j < 1; j++) {\n';
+  for (var i = 0; i < maxMeshCount; i++) {
+    var idx = i*floatsPerMesh;
+    meshString += 
+'    if (meshId < '+i+') break;\n' +
+'    emission = vec4(uMeshArray['+(idx+6)+'], uMeshArray['+(idx+7)+'], uMeshArray['+(idx+8)+'], uMeshArray['+(idx+9)+']);\n';
+  }
+  meshString += 
+'  }\n';
+  console.log(meshString);
+  return meshString;
+})() +
+'  return emission;\n' +
+'}\n' +
+
+'float getOffset(vec2 pos, float angle) {\n' +
+'  float c = cos(angle);\n' +
+'  float s = sin(angle);\n' +
+'  vec2 sceneOrigin = vec2(-HALF_SCENE_SIZE*c+HALF_SCENE_SIZE*s, -HALF_SCENE_SIZE*s-HALF_SCENE_SIZE*c);\n' +
+'  vec2 p = pos-sceneOrigin;\n' +
+'  return abs(s*p.x-c*p.y);\n' +
+'}\n' +
+
+'vec4 getRayColor(vec2 pos, float angleIdx) {\n' +
+'  float angle = PI * (angleIdx / F_ISECT_ANGLES);\n' +
+'  float offset = getOffset(pos, angle);\n' +
+'  float offsetIdx = F_ISECT_BUF_WIDTH * (offset / SCENE_SIZE);\n' +
+'  float depthIdx = F_ISECT_DEPTH * angleIdx;\n' +
+'  for (int j = 0; j < ISECT_DEPTH; j++) {\n' +
+'    vec4 pix = texture2D(isectBuffer, vec2(offsetIdx, float(j)+depthIdx));\n' +
+'  }\n' +
+'  return vec4(0.);\n' +
+'}\n' +
+
 'void main() {\n' +
-'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
+/*'  vec4 color;\n' +
+'  float pos = gl_FragCoord.xy + (vec2(sceneSize, sceneSize) - uResolution) / 2.\n;' +
+'  float angle;\n' +
+'  float offset;\n' +
+'  for (int i = 0; i < ISECT_ANGLES; i++) {\n' +
+'    color += getRayColor(pos, float(i)) / F_ISECT_ANGLES;\n' +
+'  }\n' +
+'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +*/
+'  gl_FragColor = getEmission(2);\n' +
 '}';
 
 var meshBufTestFrag =
@@ -340,6 +396,7 @@ function init() {
   // Setup floor
   var floorMat = new THREE.ShaderMaterial( {
     uniforms: { 
+      uMeshArray: { type: "fv1", value: meshArray },
       isectBuffer: { type: "t", value: isectBuffer.target.texture },
       uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
     },
@@ -351,8 +408,8 @@ function init() {
   } );
   floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
   // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
+  floor.position.set(0, 0, -1);
   scene.add(floor);
-  floor.position.set(0, 0, 1);
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
@@ -576,9 +633,9 @@ function CircleParam(params) {
 function defaultObjectParams() {
   var objectParams = [];
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(400, 0), 'size':new THREE.Vector2(10, 810), 
-                           'rotation':0., 'color':"#009966", 'isStatic':true } ) );
+                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-400, 0), 'size':new THREE.Vector2(10, 810), 
-                           'rotation':0., 'color':"#009966", 'isStatic':true } ) );
+                           'rotation':0., 'color':"#009966", 'emission':"#ffff00ff", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, -400), 'size':new THREE.Vector2(10, 810), 
                            'rotation':Math.PI/2., 'color':"#009966", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 400), 'size':new THREE.Vector2(10, 810), 
@@ -587,6 +644,14 @@ function defaultObjectParams() {
                            'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
                            'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
                            'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
   return objectParams;
