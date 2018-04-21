@@ -167,7 +167,7 @@ var isectBufFrag =
   var sortString = 
 '    for (int j = 0; j < 2; j++) {\n' +
 '      vec2 current = j == 0 ? lo : hi;\n' +
-'      if (current.y > isects['+i+'].y && isects['+i+'].x > EPS) continue;\n' +
+'      if (current.y < EPS || (current.y > isects['+i+'].y && isects['+i+'].x > EPS)) continue;\n' +
 '      isects['+i+'] = current;\n';
   for (i = isectDepth-2; i >= 0; i--) {
     sortString += 
@@ -186,17 +186,17 @@ var isectBufFrag =
 '  vec2 intersect;\n' +
 
 (function(){
-  var depthString =
+  var getIsectString =
 '  for (int j = 0; j < 1; j++) {\n';
   for (var i = 0; i < isectDepth; i++) {
-    depthString += 
+    getIsectString += 
 '    intersect = isects['+i+'];\n' +
 '    if ('+(i+1)+' > isectDepth || intersect.x < EPS) break;\n';
   }
-  depthString += 
+  getIsectString += 
 '  }\n';
-  // console.log(depthString);
-  return depthString;
+  // console.log(getIsectString);
+  return getIsectString;
 })() +
 
 '  return intersect;\n' +
@@ -261,21 +261,22 @@ var floorFrag =
 '  return emission;\n' +
 '}\n' +
 
-'float getOffset(vec2 pos, float angle) {\n' +
+'vec2 getOffsetAndDist(vec2 pos, float angle) {\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
 '  vec2 sceneOrigin = vec2(-HALF_SCENE_SIZE*c+HALF_SCENE_SIZE*s, -HALF_SCENE_SIZE*s-HALF_SCENE_SIZE*c);\n' +
 '  vec2 p = pos-sceneOrigin;\n' +
-'  return abs(s*p.x-c*p.y);\n' +
+'  return vec2(abs(s*p.x-c*p.y), abs(c*p.x+s*p.y));\n' +
 '}\n' +
 
 'vec4 getRayColor(vec2 pos, float angleIdx) {\n' +
 '  float angle = PI * (angleIdx / F_ISECT_ANGLES);\n' +
-'  float offset = getOffset(pos, angle);\n' +
-'  float offsetIdx = F_ISECT_BUF_WIDTH * (offset / SCENE_SIZE);\n' +
-'  float depthIdx = F_ISECT_DEPTH * angleIdx;\n' +
+'  vec2 offsetAndDist = getOffsetAndDist(pos, angle);\n' +
+'  float offsetIdx = F_ISECT_BUF_WIDTH * (offsetAndDist.x / SCENE_SIZE);\n' +
+'  float depthIdx = F_ISECT_DEPTH * angleIdx + 0.5;\n' +
 '  for (int j = 0; j < ISECT_DEPTH; j++) {\n' +
-'    vec4 pix = texture2D(isectBuffer, vec2(offsetIdx, float(j)+depthIdx));\n' +
+'    vec4 pix = texture2D(isectBuffer, vec2(offsetIdx, depthIdx+float(j)));\n' +
+// '    if (pix.y * SCENE_SIZE'
 '  }\n' +
 '  return vec4(0.);\n' +
 '}\n' +
@@ -287,9 +288,9 @@ var floorFrag =
 '  float offset;\n' +
 '  for (int i = 0; i < ISECT_ANGLES; i++) {\n' +
 '    color += getRayColor(pos, float(i)) / F_ISECT_ANGLES;\n' +
-'  }\n' +
-'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +*/
-'  gl_FragColor = getEmission(2);\n' +
+'  }\n' +*/
+'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
+// '  gl_FragColor = getEmission(2);\n' +
 '}';
 
 var meshBufTestFrag =
