@@ -33,7 +33,40 @@
 
 <div align="left">
   <div align="middle">
-  <h2>TODO</h2>
+  <h2>Basic UI</h2>
+  <p>[TODO: is it stupid to add this? I assume it is, but I'll let y'all make the call.] We built the basic UI components necessary to load a scene and add primitives to it.</p>
+  <h2>Rasterization</h2>
+  <p>We used THREE.js to run WebGL shaders which are rasterizing the circles and rectangles you see on the screen. We define our shapes explicitly (TODO: is this the other way around?) as THREE.js meshes, which we then convert to implicitly  (TODO: is this the other way around?) defined primitives that are being processed by the WebGL shaders to rasterize onto the screen. (TODO: what else can we say here? Mesh buffer?). </p>
+  <h2>Physics</h2>
+  <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We intialize our physics world in our THREE.js init, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
+  <h2>Parallel Ray-Bundling</h2>
+  <p>[TODO: Not too sure what to write here...]</p>
+  <h3>[TODO] Mesh Buffer</h3>
+  <h3>[TODO] isect Buffer</h3>
+  <p>[TODO: Joseph could you explain how we are shooting the rays of from the corner and calculating from the intersections from there, I'm not 100% clear on that]. Because we are shooting rays in a parallel fashion, we can expect good results by only shooting rays in 180 degress instead of 360 degrees.</p>
+  <br/><br/>
+  <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/parallel_rays.jpg" align="middle" width="400px"/>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <br/><br/>
+  <p>Because we have all of the mesh information on the GPU, we can run a GPU process to calculate the intersections we have in the scene. Here is how the isect buffer looks like in the GPU:</p>
+  <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/isect_buffer.png" align="middle" width="400px"/>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <br/><br/>
+    <p>Once we have calculated the intersection of those rays with all of the primitives and stored it in our isect buffer, we are able to know calculate the radiance for all of the scene and reflect that on the lights and shadows shown on the ground. (TODO: this is pretty vague/bad).</p>
   <p>
     Latex examples:<br/><br/>
     \(ax^2 + bx + c = 0\)
