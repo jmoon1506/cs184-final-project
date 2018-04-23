@@ -9,7 +9,7 @@ var lastTick = 0;
 
 var shapeTypes = 2;
 var sceneSize = 1024; // scale for pixel encoding, max raymarch distance
-var maxMeshCount = 32;
+var maxMeshCount = 18;
 var floatsPerMesh = 10;  // shape, rotation, x, y, w, h, r, g, b, a
 var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
@@ -255,7 +255,7 @@ var floorFrag =
   }
   meshString += 
 '  }\n';
-  console.log(meshString);
+  // console.log(meshString);
   return meshString;
 })() +
 '  return emission;\n' +
