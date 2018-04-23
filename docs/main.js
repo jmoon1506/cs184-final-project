@@ -363,7 +363,6 @@ function init() {
 
   addObjects(defaultObjectParams());
 
-
   // Drag and drop
   var nonStaticMeshes = [];
   for (var meshId in meshes){
@@ -445,7 +444,7 @@ function setupBuffer(width, height) {
       minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, 
       stencilBuffer: false,
       depthBuffer: false,
-      type: THREE.FloatType,
+      // type: THREE.FloatType,
       transparent: false,
     } );
   return buffer;
