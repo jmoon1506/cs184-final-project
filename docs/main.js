@@ -434,7 +434,7 @@ function init() {
   floor.position.set(600, 0, -1);
   scene.add(floor);
 
-  addText('Intersect Buffer', 600, 200);
+  addText('Intersect Buffer', 600, -isectBufferHeight/2-32);
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
