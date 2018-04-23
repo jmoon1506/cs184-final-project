@@ -9,13 +9,13 @@ var lastTick = 0;
 
 var shapeTypes = 2;
 var sceneSize = 1024; // scale for pixel encoding, max raymarch distance
-var maxMeshCount = 18;
+var maxMeshCount = 20;
 var floatsPerMesh = 10;  // shape, rotation, x, y, w, h, r, g, b, a
 var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 200; // rays per angle
 var isectDepth = 8;         // isects per ray
-var isectAngles = 32;
+var isectAngles = 6;
 var isectBufferHeight = isectAngles * isectDepth;
 
 var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies, Body = Matter.Body;
@@ -247,7 +247,7 @@ var floorFrag =
 (function(){
   var meshString =
 '  for (int j = 0; j < 1; j++) {\n';
-  for (var i = 0; i < maxMeshCount; i++) {
+  for (var i = 1; i < maxMeshCount; i++) {
     var idx = i*floatsPerMesh;
     meshString += 
 '    if (meshId < '+i+') break;\n' +
@@ -259,6 +259,27 @@ var floorFrag =
   return meshString;
 })() +
 '  return emission;\n' +
+'}\n' +
+
+'vec4 getNearestIsects(float pointDist, float offsetIdx, float depthIdx) {\n' +
+'  vec2 isect1;\n' +
+'  vec2 isect2;\n' +
+'  float is_inside;\n' +
+'  for (int j = 0; j < ISECT_DEPTH; j++) {\n' +
+'    float curIdx = float(j);\n' +
+'    is_inside = mod(curIdx, 2.);\n' +
+'    vec4 pix = texture2D(isectBuffer, vec2(offsetIdx, depthIdx+curIdx));\n' +
+'    float isectMeshId = F_MAX_MESH_COUNT * pix.x;\n' +
+'    float isectDist = SCENE_SIZE * pix.y;\n' +
+'    if (pointDist < isectDist) {\n' +
+'      isect2 = vec2(isectMeshId, isectDist);\n' +
+'      break;\n' +
+'    } else {\n' +
+'      isect1 = vec2(isectMeshId, isectDist);\n' +
+'    }\n' +
+'  }\n' +
+'  return vec4(isect1, isect2);\n' +
+// '  return (1.-is_inside) * vec4(isect1, isect2);\n' +
 '}\n' +
 
 'vec2 getOffsetAndDist(vec2 pos, float angle) {\n' +
@@ -274,22 +295,24 @@ var floorFrag =
 '  vec2 offsetAndDist = getOffsetAndDist(pos, angle);\n' +
 '  float offsetIdx = F_ISECT_BUF_WIDTH * (offsetAndDist.x / SCENE_SIZE);\n' +
 '  float depthIdx = F_ISECT_DEPTH * angleIdx + 0.5;\n' +
-'  for (int j = 0; j < ISECT_DEPTH; j++) {\n' +
-'    vec4 pix = texture2D(isectBuffer, vec2(offsetIdx, depthIdx+float(j)));\n' +
-// '    if (pix.y * SCENE_SIZE'
-'  }\n' +
-'  return vec4(0.);\n' +
+'  vec4 nearestIsects = getNearestIsects(offsetAndDist.y, offsetIdx, depthIdx);\n' +
+'  vec4 color1 = abs(nearestIsects.y - offsetAndDist.y) * getEmission(int(floor(nearestIsects.x+0.5)));\n' +
+'  vec4 color2 = abs(nearestIsects.w - offsetAndDist.y) * getEmission(int(floor(nearestIsects.z+0.5)));\n' +
+'  return color1 + color2;\n' +
+// '  return vec4(0.);\n' +
 '}\n' +
 
 'void main() {\n' +
-/*'  vec4 color;\n' +
-'  float pos = gl_FragCoord.xy + (vec2(sceneSize, sceneSize) - uResolution) / 2.\n;' +
-'  float angle;\n' +
-'  float offset;\n' +
+'  vec4 color;\n' +
+'  vec2 pos = gl_FragCoord.xy + (vec2(SCENE_SIZE, SCENE_SIZE) - uResolution) / 2.\n;' +
+// '  float angle;\n' +
+// '  float offset;\n' +
 '  for (int i = 0; i < ISECT_ANGLES; i++) {\n' +
-'    color += getRayColor(pos, float(i)) / F_ISECT_ANGLES;\n' +
-'  }\n' +*/
-'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
+// '    color += getRayColor(pos, float(i)) / F_ISECT_ANGLES;\n' +
+'    color += getNearestIsects(0.5, v_uv.x, v_uv.y);\n' +
+'  }\n' +
+'  gl_FragColor = color;\n' +
+// '  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
 // '  gl_FragColor = getEmission(2);\n' +
 '}';
 
@@ -402,12 +425,12 @@ function init() {
     },
     vertexShader:    floorVert,
     fragmentShader:  floorFrag,
-    depthTest:       false,
+    // depthTest:       false,
     transparent:     false,
     premultipliedAlpha: false,
   } );
-  floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
-  // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
+  // floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
+  floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   floor.position.set(0, 0, -1);
   scene.add(floor);
 
