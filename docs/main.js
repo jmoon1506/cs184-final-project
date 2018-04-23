@@ -15,7 +15,7 @@ var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 200; // rays per angle
 var isectDepth = 8;         // isects per ray
-var isectAngles = 6;
+var isectAngles = 36;
 var isectBufferHeight = isectAngles * isectDepth;
 
 var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies, Body = Matter.Body;
@@ -311,8 +311,8 @@ var floorFrag =
 // '    color += getRayColor(pos, float(i)) / F_ISECT_ANGLES;\n' +
 '    color += getNearestIsects(0.5, v_uv.x, v_uv.y);\n' +
 '  }\n' +
-'  gl_FragColor = color;\n' +
-// '  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
+// '  gl_FragColor = color;\n' +
+'  gl_FragColor = texture2D(isectBuffer, v_uv);\n' +
 // '  gl_FragColor = getEmission(2);\n' +
 '}';
 
@@ -429,10 +429,12 @@ function init() {
     transparent:     false,
     premultipliedAlpha: false,
   } );
-  // floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
-  floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
-  floor.position.set(0, 0, -1);
+  floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
+  // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
+  floor.position.set(600, 0, -1);
   scene.add(floor);
+
+  addText('Intersect Buffer', 600, 200);
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
@@ -471,6 +473,21 @@ function setupBuffer(width, height) {
       transparent: false,
     } );
   return buffer;
+}
+
+function addText(text, x, y) {
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
+  ctx.textAlign = "center";
+  ctx.textBaseline="middle";
+  ctx.font = "32px Arial";
+  ctx.fillStyle = "rgba(0,0,0,1.0)";
+  ctx.fillText(text, canvas.width/2, canvas.height/2);
+  var texture = new THREE.Texture(canvas);
+  texture.needsUpdate = true;
+  var mesh = new THREE.Mesh( new THREE.PlaneGeometry(canvas.width, canvas.height), new THREE.MeshBasicMaterial({map:texture, transparent:true}) );
+  mesh.position.set(x, y, 0);
+  scene.add(mesh);
 }
 
 function animate(tick) {
