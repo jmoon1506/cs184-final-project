@@ -395,6 +395,17 @@ function init() {
     }
   }
 
+  var gl = renderer.getContext();
+  var vertexPosBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.UNIFORM_BUFFER, vertexPosBuffer);
+  var vertices = new Float32Array([
+      -0.3, -0.5,
+       0.3, -0.5,
+       0.0,  0.5
+  ]);
+  gl.bufferData(gl.UNIFORM_BUFFER, vertices, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
   var controls = new THREE.DragControls( nonStaticMeshes, camera, renderer.domElement );
   controls.addEventListener( 'dragstart', dragStartCallback );
   controls.addEventListener( 'dragend', dragendCallback );
