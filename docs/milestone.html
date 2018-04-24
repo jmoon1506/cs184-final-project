@@ -151,7 +151,9 @@
   <h2>Additional Features</h2>
 
   <h3>Basic UI</h3>
-  <p>We built the basic UI components necessary to load meshes from a template, drag meshes using the mouse, and insert additional meshes.</p>
+  <p>We built the basic UI components necessary to load meshes from a template and insert additional meshes.</p>
+  <h3>Drag and Drop</h3>
+  <p>We added the ability to drag and drop meshes to allow for interaction with the scene. This feature will help demonstrate the live aspect of our project once we start calculating the light for each bounce.</p>
   <h3>Physics</h3>
   <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
   <p>
