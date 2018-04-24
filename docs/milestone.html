@@ -15,9 +15,24 @@
     font-family: 'Source Sans Pro', sans-serif;
     text-align: "middle";
   }
+  h1 {
+    font-size: 20px;
+  }
+  h2 {
+    font-size: 18px;
+  }
+  h3 {
+    font-size: 16px;
+  }
+  h4 {
+    font-size: 14px;
+  }
   #container {
     width: 100%;
     height: 500px;
+  }
+  p {
+    font-size: 14px;
   }
 </style>
 <title>CS 184 Mesh Editor</title>
@@ -31,21 +46,35 @@
 <h1 align="middle">Final Project Milestone</h1>
 <h1 align="middle">Real-time 2D Global Illumination</h1>
 <br/>
-<h3 align="middle">Joseph Moon, Abdul AlZanki, Lawrence Elkins</h3>
-<br/><br/>
+<h3 align="middle">Joseph Moon (3033156362), Abdul AlZanki (25740621), Lawrence Elkins (23452545)</h3>
+<br/>
 
 <div align="middle">
-<a href="https://docs.google.com/presentation/d/1qLiLNzz_FO9Iqty2awgFOojyRgHUTduABjUp0wsAU28/edit?usp=sharing"><font size="5">Go to Milestone Slides</font></a>
-<br/><br/>
-<a href="https://docs.google.com/presentation/d/1qLiLNzz_FO9Iqty2awgFOojyRgHUTduABjUp0wsAU28/edit?usp=sharing"><font size="5">Go to Milestone Video</font></a>
+  <a href="https://docs.google.com/presentation/d/1qLiLNzz_FO9Iqty2awgFOojyRgHUTduABjUp0wsAU28/edit?usp=sharing"><font size="3">Go to Milestone Slides</font></a>
+  <br/>
+  <a href="https://docs.google.com/presentation/d/1qLiLNzz_FO9Iqty2awgFOojyRgHUTduABjUp0wsAU28/edit?usp=sharing"><font size="3">Go to Milestone Video</font></a>
+  <br/>
+  <a href="index.html"><font size="3">Go back</font></a>
 </div>
 
-<br/><br/>
+<br/>
 
 <div align="left">
+  <p>We seem to be making good progress. Our team has finished the mesh array and intersect buffer, letting us focus on the final part - the lighting shader. We also implemented controls and physics.</p>
+  <div align="middle">
+    <table style="width=100%" cellpadding="32">
+      <tr>
+        <td>
+          <img src="images/milestone1.png" align="middle" width="600px"/>
+          <figcaption align="middle"><font size="2">Screenshot of current program, with intersect buffer shown for debug purposes</font></figcaption>
+        </td>
+      </tr>
+    </table>
+  </div>
+
   <div align="middle"><h2>Project Recap</h2></div>
   <p>Real-time global illumination remains an unsolved problem in high-fidelity graphics. Traditional raytracing (i.e. pathtracing) casts rays from the camera into the scene. This becomes prohibitively expensive as the number of ray bounces grows. Dependencies between rays and the high cost of testing intersections also make raytracing difficult to parallelize on a GPU. Photon mapping, which casts rays from light sources, faces the same problem.</p>
-  <p>We propose a raytracing algorithm utilizes the GPU more effectively by casting rays in parallel bundles. This algorithm calculates all potential intersections in a single render pass. As a result, it can rapidly calculate lighting in the final gather step. By reducing the problem to 2D, it is even possible to run this algorithm in real-time. However, all existing implementations rely on a GPU feature - atomic counters - which has been compromised by the Spectre vulnerability. We are attempting an implementation that does not risk user security, which is necessary to run on a web platform.</p>
+  <p>We propose a raytracing algorithm that utilizes the GPU more effectively by casting rays in parallel bundles. This algorithm calculates all potential intersections in a single render pass. As a result, it can rapidly calculate lighting in the final gather step. By reducing the problem to 2D, it is even possible to run this algorithm in real-time. However, all existing implementations rely on a GPU feature - atomic counters - which has been compromised by the Spectre vulnerability. We are attempting an implementation that does not risk user security, which is necessary to run on a web platform.</p>
 
   <div align="middle">
     <table style="width=100%">
@@ -67,15 +96,10 @@
   </div>
   <br/>
   <div align="middle"><h2>Parallel Ray-Bundling</h2></div>
-  <p>To reach real-time performance, our algorithm must break down into small, parallel tasks that can be written into shader programs that run on the GPU. However, the GPU must also read in scene objects every frame (since defining objects entirely in the shader would limit interactivity). Therefore we use Three.js meshes as our scene objects and calculate lighting solutions based on their current size and position. Our render loop looks like the following:</p>
-  <ol>
-    <li>Collect mesh information</li>
-    <li>Calculate parallel ray intersections</li>
-    <li>Calculate light for each bounce</li>
-  </ol>
+  <p>To reach real-time performance, our algorithm must break down into small, parallel tasks that can be written into shader programs that run on the GPU. However, the GPU must also read in scene objects every frame (since defining objects entirely in the shader would limit interactivity). Therefore we use Three.js meshes as our scene objects and calculate lighting solutions based on their current size and position.
 
   <h3>Collecting Mesh Information</h3>
-  <p>To read mesh information in the shader, we tried recompiling the shader every frame, encoding mesh information as a sampling texture, and passing each mesh into the shader as individual uniforms. These were either too slow or limited by hardware constraints. However, by using a feature newly introduced in WebGL2 - uniform buffer objects - we may be able to send to the GPU thousands of bytes containing uniform data.</p>
+  <p>To read mesh information into the shader, we tried recompiling the shader every frame, encoding mesh information as a sampling texture, and passing each mesh into the shader as individual uniforms. These were either too slow or limited by hardware constraints. However, by using a feature newly introduced in WebGL2 - uniform buffer objects - we may be able to send to the GPU thousands of bytes containing uniform data.</p>
 
   <h3>Calculating Parallel Ray Intersections</h3>
   <p>The first shader in our render pipeline, the intersection shader outputs a fixed-size texture containing carefully encoded data. We define the x-axis as the index of the parallel offset. This means that horizontally adjacent pixels correspond to adjacent rays, with x=0 being the right-most ray and x=isectWidth being the left-most ray (relative to whichever angle they were cast from). We divided the y-axis into chunks for each angle, with the height of each chunk being the maximum number of intersections each ray can record. The R, G, and B color values of each pixel contain each intersection's meshId and distance along the ray. This lets us quickly determine how far away it is from a point on the same ray and which mesh to lookup for lighting information.</p>
@@ -83,13 +107,13 @@
   <div align="middle">
     <table style="width=100%" cellpadding="32">
       <tr>
-        <td>
-          <img src="images/isect_buffer.png" align="middle" height="400px"/>
-          <figcaption align="middle"><font size="3">Structure of the intersect buffer</font></figcaption>
+        <td align="middle">
+          <img src="images/isect_buffer.png" align="middle" height="200px"/>
+          <figcaption align="middle"><font size="2">Structure of the intersect buffer</font></figcaption>
         </td>
-        <td>
-          <img src="images/isect_buffer_real.png" align="middle" height="400px"/>
-          <figcaption align="middle"><font size="3">Appearance of the intersect buffer in our program</font></figcaption>
+        <td align="middle">
+          <img src="images/isect_buffer_real.png" align="middle" height="200px"/>
+          <figcaption align="middle"><font size="2">Appearance of the intersect buffer in our program</font></figcaption>
         </td>
       </tr>
     </table>
@@ -100,25 +124,27 @@
   <h3>Calculating Light For Each Bounce (Not Yet Implemented)</h3>
   <p>Once we have calculated the intersection of those rays with all of the meshes and stored it in our intersect buffer, we are able calculate the radiance for all of the scene and reflect that on the lights and shadows shown on the ground. For each pixel, we iterate through each angle. In each angle, we determine the ray passing through that pixel and find the two closest intersections (if they exist). If either of these intersections corresponds to a light-emitting mesh, we calculate the resulting irradiance at the pixel relative to its distance from the intersection. We add together all the irradiances and divide the sum by the number of angles. This should give us direct lighting.</p>
 
-  <br/><br/>
+  <p>For indirect lighting, we can use the same algorithm on the intersection points themselves, finding which rays emit onto them. This will probably be a separate render pass, so as to avoid dependency issues between bounces.</p>
+
+  <br/>
   <div align="middle">
       <table style="width=100%">
         <tr>
           <td>
-            <img src="images/parallel_rays.jpg" align="middle" width="500"/>
-            <figcaption align="middle"><font size="2">For each angle, pixels will gather light from the nearest intersections along the same ray</font></figcaption>
+            <img src="images/parallel_rays.jpg" align="middle" width="200px"/>
           </td>
         </tr>
       </table>
     </div>
-    <br/><br/>
+    <br/>
   </div>
+  <div align="middle"><p><font size="2">For each angle, pixels will gather light from the nearest intersections along the same ray</font></p></div>
 
-    <p>For indirect lighting, we can use the same algorithm on the intersection points themselves, finding which rays emit onto them. This will probably be a separate render pass, so as to avoid dependency issues between bounces.</p>
+    
 <!--   <p>
-    Latex examples:<br/><br/>
+    Latex examples:<br/>
     \(ax^2 + bx + c = 0\)
-    <br/><br/>
+    <br/>
     $$x = {-b \pm \sqrt{b^2-4ac} \over 2a}.$$
   </p> -->
 
@@ -127,10 +153,11 @@
   <h3>Basic UI</h3>
   <p>We built the basic UI components necessary to load meshes from a template, drag meshes using the mouse, and insert additional meshes.</p>
   <h3>Physics</h3>
-  <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We intialize our physics world in our THREE.js init, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
+  <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
+  <p>
 </div>
 
-<br/><br/>
+<br/>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-MML-AM_CHTML' async></script>
 </body>
 </html>
