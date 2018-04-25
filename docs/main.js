@@ -20,6 +20,8 @@ var isectBufferHeight = isectAngles * isectDepth;
 
 var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies, Body = Matter.Body;
 
+var dragControls = undefined;
+
 var testMesh, testMat;
 
 function glslFloat(val) {
@@ -387,13 +389,7 @@ function init() {
   addObjects(defaultObjectParams());
 
   // Drag and drop
-  var nonStaticMeshes = [];
-  for (var meshId in meshes){
-    var object = meshes[meshId];
-    if (!object.isStatic) {
-      nonStaticMeshes.push(object);
-    }
-  }
+  enableDrag();
 
   var gl = renderer.getContext();
   var vertexPosBuffer = gl.createBuffer();
@@ -405,10 +401,6 @@ function init() {
   ]);
   gl.bufferData(gl.UNIFORM_BUFFER, vertices, gl.DYNAMIC_DRAW);
   gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-
-  var controls = new THREE.DragControls( nonStaticMeshes, camera, renderer.domElement );
-  controls.addEventListener( 'dragstart', dragStartCallback );
-  controls.addEventListener( 'dragend', dragendCallback );
 
   // Setup intersection buffer
   isectBuffer = setupBuffer(isectBufferWidth, isectBufferHeight);
@@ -462,6 +454,24 @@ function init() {
 
   Engine.run(engine);
 };
+
+function enableDrag() {
+  if (dragControls != undefined) {
+    dragControls.dispose();
+  }
+
+  var nonStaticMeshes = [];
+  for (var meshId in meshes){
+    var object = meshes[meshId];
+    if (!object.isStatic) {
+      nonStaticMeshes.push(object);
+    }
+  }
+
+  dragControls = new THREE.DragControls( nonStaticMeshes, camera, renderer.domElement );
+  dragControls.addEventListener( 'dragstart', dragStartCallback );
+  dragControls.addEventListener( 'dragend', dragendCallback );
+}
 
 function dragStartCallback(event) {
   event.object.isBeingDragged = true;
