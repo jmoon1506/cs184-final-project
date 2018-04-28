@@ -36,7 +36,7 @@ function init() {
     container.appendChild( stats.dom );
   }
   engine = Engine.create({render: {visible: false}});
-  engine.world.gravity.y = -1;
+  engine.world.gravity.y = 0;
 
   addObjects(defaultObjectParams());
 
@@ -72,6 +72,22 @@ function init() {
   // scene.add(isectBuffer.mesh);
 
   // Setup floor
+  var isectVizMat = new THREE.ShaderMaterial( {
+    uniforms: { 
+      uMeshArray: { type: "fv1", value: meshArray },
+      isectBuffer: { type: "t", value: isectBuffer.target.texture },
+      uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
+    },
+    vertexShader:    floorVert,
+    fragmentShader:  isectBufViz,
+    transparent:     false,
+    premultipliedAlpha: false,
+  } );
+  floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), isectVizMat );
+  floor.position.set(600, 0, -1);
+  scene.add(floor);
+
+  // Setup floor
   var floorMat = new THREE.ShaderMaterial( {
     uniforms: { 
       uMeshArray: { type: "fv1", value: meshArray },
@@ -81,15 +97,15 @@ function init() {
     vertexShader:    floorVert,
     fragmentShader:  floorFrag,
     // depthTest:       false,
-    transparent:     false,
+    transparent:     true,
     premultipliedAlpha: false,
   } );
-  floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
-  // floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
-  floor.position.set(600, 0, -1);
+  // floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), floorMat );
+  // floor.position.set(600, 0, -1);
+  floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   scene.add(floor);
 
-  addText('Intersect Buffer', 600, -isectBufferHeight/2-32);
+  // addText('Intersect Buffer', 600, -isectBufferHeight/2-32);
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
@@ -345,7 +361,7 @@ function CircleParam(params) {
 
 function defaultObjectParams() {
   var objectParams = [];
-  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(400, 0), 'size':new THREE.Vector2(10, 810), 
+/*  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(400, 0), 'size':new THREE.Vector2(10, 810), 
                            'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-400, 0), 'size':new THREE.Vector2(10, 810), 
                            'rotation':0., 'color':"#009966", 'emission':"#ffff00ff", 'isStatic':true } ) );
@@ -366,7 +382,11 @@ function defaultObjectParams() {
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
                            'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );*/
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(-200, -150), 'radius':150, 
+                         'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':80, 
+                       'color':"#009966", 'emission':"#00ff00ff", 'isStatic':false } ) );
   return objectParams;
 }
 
