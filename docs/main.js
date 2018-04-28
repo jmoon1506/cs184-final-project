@@ -71,8 +71,7 @@ function init() {
   isectBuffer.scene.add(isectBuffer.mesh);
   // scene.add(isectBuffer.mesh);
 
-  // Setup floor
-  var isectVizMat = new THREE.ShaderMaterial( {
+/*  var isectVizMat = new THREE.ShaderMaterial( {
     uniforms: { 
       uMeshArray: { type: "fv1", value: meshArray },
       isectBuffer: { type: "t", value: isectBuffer.target.texture },
@@ -83,9 +82,9 @@ function init() {
     transparent:     false,
     premultipliedAlpha: false,
   } );
-  floor = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), isectVizMat );
-  floor.position.set(600, 0, -1);
-  scene.add(floor);
+  isectViz = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), isectVizMat );
+  isectViz.position.set(600, 0, -1);
+  scene.add(isectViz);*/
 
   // Setup floor
   var floorMat = new THREE.ShaderMaterial( {
@@ -248,6 +247,7 @@ function addObjects(objectParams) {
       mesh.size = o.size;
       mesh.rotation.z = o.rotation;
       mesh.emission = hexToRGBA(o.emission);
+      mesh.emissionRadius = o.emissionRadius;
       mesh.shape = 1; // custom type id
       mesh.physicsBody = Bodies.rectangle(
           o.position.x,
@@ -269,6 +269,7 @@ function addObjects(objectParams) {
       mesh.size = new THREE.Vector2(o.radius, o.radius); // standardize for mesh buffer
       mesh.rotation.z = 0;
       mesh.emission = hexToRGBA(o.emission);
+      mesh.emissionRadius = o.emissionRadius;
       mesh.shape = 2; // custom type id
       mesh.physicsBody = Bodies.circle(
           o.position.x,
@@ -384,9 +385,9 @@ function defaultObjectParams() {
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
                            'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );*/
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(-200, -150), 'radius':150, 
-                         'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+                         'color':"#009966", 'emission':"#ff0000ff", 'emissionRadius':30, 'isStatic':false } ) );
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':80, 
-                       'color':"#009966", 'emission':"#00ff00ff", 'isStatic':false } ) );
+                       'color':"#009966", 'emission':"#00ff00ff", 'emissionRadius':30, 'isStatic':false } ) );
   return objectParams;
 }
 
@@ -395,7 +396,7 @@ function newSquareParams() {
   var width = document.getElementsByName("width")[0].value;
   var height = document.getElementsByName("height")[0].value;
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 0), 'size':new THREE.Vector2(width, height), 
-                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'emissionRadius':30, 'isStatic':false } ) );
   return objectParams;
 }
 
@@ -403,7 +404,7 @@ function newCircleParams() {
   var objectParams = [];
   var radius = document.getElementsByName("radius")[0].value;
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(0, 0), 'radius':radius, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+                           'color':"#009966", 'emission':"#ff0000ff", 'emissionRadius':30, 'isStatic':false } ) );
   return objectParams;
 }
 
