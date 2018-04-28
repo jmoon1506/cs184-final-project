@@ -25,7 +25,7 @@ function init() {
   var aspect = container.offsetWidth / container.offsetHeight;
   camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1, 1 );
   scene = new THREE.Scene();
-  scene.background = new THREE.Color( 0xf0f0f0 );
+  scene.background = new THREE.Color( 0xffffff );
   raycaster = new THREE.Raycaster();
   renderer = new THREE.WebGLRenderer();
   container.appendChild(renderer.domElement);
@@ -385,9 +385,9 @@ function defaultObjectParams() {
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
                            'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );*/
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(-200, -150), 'radius':150, 
-                         'color':"#009966", 'emission':"#ff0000ff", 'emissionRadius':30, 'isStatic':false } ) );
+                         'color':"#009966", 'emission':"#f00f", 'emissionRadius':30, 'isStatic':false } ) );
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':80, 
-                       'color':"#009966", 'emission':"#00ff00ff", 'emissionRadius':30, 'isStatic':false } ) );
+                       'color':"#009966", 'emission':"#0000", 'emissionRadius':30, 'isStatic':false } ) );
   return objectParams;
 }
 
