@@ -209,7 +209,7 @@ var floorFrag =
 '    vec4 pix = texture2D(isectBuffer, vec2(floor(offset+0.5)/SCENE_SIZE, (isectStartIdx+curIdx)/F_ISECT_BUF_HEIGHT));\n' +
 '    float isectMeshId = F_MAX_MESH_COUNT * pix.x;\n' +
 '    float isectDist = SCENE_SIZE * pix.y;\n' +
-'    if (dist < isectDist) {\n' +
+'    if (dist < isectDist || dist > isectDist) {\n' +
 '      isect2 = vec2(isectMeshId, isectDist);\n' +
 '      if (abs(mod(curIdx, 2.)) > 0.9) return vec4(0.);\n' + // if inside shape, return empty
 '      break;\n' +
