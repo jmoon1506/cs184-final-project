@@ -6,8 +6,9 @@ var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 256; // rays per angle
 var isectDepth = 8;         // isects per ray
-var isectAngles = 32;
+var isectAngles = 8;
 var isectBufferHeight = isectAngles * isectDepth;
+var bounces = 12;
 
 function glslFloat(val) {
   if (val % 1 == 0)
@@ -230,8 +231,10 @@ var floorFrag =
 '  vec4 color2 = getEmission(int(floor(isect2.x+0.5)));\n' +
 '  float dist1 = abs(isect1.y - pixelDist);\n' +
 '  float dist2 = abs(isect2.y - pixelDist);\n' +
-'  vec3 color = normalize(color1.rgb + color2.rgb);\n' +
-'  return isInside * vec4(color, max(color1.a, color2.a));\n' +
+'  float d1 = max(0., (1. - 1.0 * dist1 / SCENE_SIZE));\n' +
+'  float d2 = max(0., (1. - 1.0 * dist2 / SCENE_SIZE));\n' +
+'  vec4 color = color1 * (d1*d1) + color2 * (d2*d2);\n' +
+'  return isInside * color;\n' +
 '}\n' +
 
 'void main() {\n' +
