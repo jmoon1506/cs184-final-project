@@ -227,21 +227,39 @@ var floorFrag =
 })() +
 '  float isInside = 1. - abs(mod(isect2.z, 2.));\n' +
 
-'  vec4 color1 = getEmission(int(floor(isect1.x+0.5)));\n' +
+/*'  vec4 color1 = getEmission(int(floor(isect1.x+0.5)));\n' +
 '  vec4 color2 = getEmission(int(floor(isect2.x+0.5)));\n' +
 '  float dist1 = abs(isect1.y - pixelDist);\n' +
 '  float dist2 = abs(isect2.y - pixelDist);\n' +
 '  float d1 = max(0., (1. - 1.0 * dist1 / SCENE_SIZE));\n' +
 '  float d2 = max(0., (1. - 1.0 * dist2 / SCENE_SIZE));\n' +
 '  vec4 color = color1 * (d1*d1) + color2 * (d2*d2);\n' +
-'  return isInside * color;\n' +
+'  return isInside * color;\n' +*/
+'  return isInside * vec4(isect1.x, abs(isect1.y - pixelDist), isect2.x, abs(isect2.y - pixelDist));\n' + // id, dist, id, dist
 '}\n' +
 
 'void main() {\n' +
 '  vec2 pos = gl_FragCoord.xy - uResolution;\n' +
+'  vec2 E1;\n' +
+'  vec2 E2;\n' +
+'  vec2 E3;\n' +
 '  for (int i = 0; i < ISECT_ANGLES; i++) {\n' +
-'    gl_FragColor += getIrradiance(float(i), pos) / F_ISECT_ANGLES;\n' +
+'    vec4 E = getIrradiance(float(i), pos);\n' +
+'    if (E1.x < EPS || (abs(E1.x - E.x) < EPS && E1.y > E.y)) E1 = E.xy;\n' +
+'    if (E1.x < EPS || (abs(E1.x - E.z) < EPS && E1.y > E.w)) E1 = E.zw;\n' +
+'    if (E2.x < EPS || (abs(E2.x - E.x) < EPS && E2.y > E.y)) E2 = E.xy;\n' +
+'    if (E2.x < EPS || (abs(E2.x - E.z) < EPS && E2.y > E.w)) E2 = E.zw;\n' +
+'    if (E3.x < EPS || (abs(E3.x - E.x) < EPS && E3.y > E.y)) E3 = E.xy;\n' +
+'    if (E3.x < EPS || (abs(E3.x - E.z) < EPS && E3.y > E.w)) E3 = E.zw;\n' +
+// '    gl_FragColor += getIrradiance(float(i), pos) / F_ISECT_ANGLES;\n' +
 '  }\n' +
+'  vec4 color1 = getEmission(int(floor(E1.x+0.5)));\n' +
+'  vec4 color2 = getEmission(int(floor(E2.x+0.5)));\n' +
+'  vec4 color3 = getEmission(int(floor(E3.x+0.5)));\n' +
+'  float d1 = 1. + 1.0*E1.y/300.;\n' +
+'  float d2 = 1. + 1.0*E2.y/300.;\n' +
+'  float d3 = 1. + 1.0*E3.y/300.;\n' +
+'  gl_FragColor = color1/(3.*d1*d1) + color2/(3.*d2*d2) + color3/(3.*d3*d3);\n' +
 '}';
 
 var isectBufViz = 
