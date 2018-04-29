@@ -366,10 +366,10 @@ function defaultObjectParams() {
                            'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-400, 0), 'size':new THREE.Vector2(10, 810), 
                            'rotation':0., 'color':"#009966", 'emission':"#ffff00ff", 'isStatic':true } ) );
-  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, -400), 'size':new THREE.Vector2(10, 810), 
-                           'rotation':Math.PI/2., 'color':"#009966", 'isStatic':true } ) );
-  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 400), 'size':new THREE.Vector2(10, 810), 
-                           'rotation':Math.PI/2., 'color':"#009966", 'isStatic':true } ) );
+  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, -400), 'size':new THREE.Vector2(810, 10), 
+                           'rotation':0, 'color':"#009966", 'isStatic':true } ) );
+  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 400), 'size':new THREE.Vector2(810, 10), 
+                           'rotation':0, 'color':"#009966", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(200, 150), 'size':new THREE.Vector2(100, 200), 
                            'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
