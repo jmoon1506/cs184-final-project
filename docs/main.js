@@ -25,7 +25,7 @@ function init() {
   var aspect = container.offsetWidth / container.offsetHeight;
   camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1, 1 );
   scene = new THREE.Scene();
-  scene.background = new THREE.Color( 0xffffff );
+  scene.background = new THREE.Color( 0x000000 );
   raycaster = new THREE.Raycaster();
   renderer = new THREE.WebGLRenderer();
   container.appendChild(renderer.domElement);
@@ -362,32 +362,32 @@ function CircleParam(params) {
 
 function defaultObjectParams() {
   var objectParams = [];
-/*  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(400, 0), 'size':new THREE.Vector2(10, 810), 
-                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':true } ) );
+  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(400, 0), 'size':new THREE.Vector2(10, 810), 
+                           'rotation':0., 'color':"#009966", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-400, 0), 'size':new THREE.Vector2(10, 810), 
-                           'rotation':0., 'color':"#009966", 'emission':"#ffff00ff", 'isStatic':true } ) );
+                           'rotation':0., 'color':"#009966", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, -400), 'size':new THREE.Vector2(810, 10), 
                            'rotation':0, 'color':"#009966", 'isStatic':true } ) );
   objectParams.push( new BoxParam( { 'position':new THREE.Vector2(0, 400), 'size':new THREE.Vector2(810, 10), 
                            'rotation':0, 'color':"#009966", 'isStatic':true } ) );
-  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(200, 150), 'size':new THREE.Vector2(100, 200), 
-                           'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
-  objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
-                           'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
-  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
-  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
-  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
-  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
-  objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );*/
+  // objectParams.push( new BoxParam( { 'position':new THREE.Vector2(200, 150), 'size':new THREE.Vector2(100, 200), 
+  //                          'rotation':Math.PI/5., 'color':"#009966", 'isStatic':false } ) );
+  // objectParams.push( new BoxParam( { 'position':new THREE.Vector2(-150, -100), 'size':new THREE.Vector2(250, 250), 
+  //                          'rotation':0., 'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  // objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+  //                          'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  // objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+  //                          'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  // objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+  //                          'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  // objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+  //                          'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
+  // objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':50, 
+  //                          'color':"#009966", 'emission':"#ff0000ff", 'isStatic':false } ) );
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(-200, -150), 'radius':150, 
-                         'color':"#009966", 'emission':"#f00f", 'emissionRadius':30, 'isStatic':false } ) );
+                         'color':"#009966", 'emission':"#ffff", 'emissionRadius':30, 'isStatic':false } ) );
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(180, 150), 'radius':80, 
-                       'color':"#009966", 'emission':"#0000", 'emissionRadius':30, 'isStatic':false } ) );
+                       'color':"#009966", 'emission':"#ffff", 'emissionRadius':30, 'isStatic':false } ) );
   return objectParams;
 }
 

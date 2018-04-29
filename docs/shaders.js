@@ -6,7 +6,7 @@ var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 256; // rays per angle
 var isectDepth = 8;         // isects per ray
-var isectAngles = 32;
+var isectAngles = 70;
 var isectBufferHeight = isectAngles * isectDepth;
 
 function glslFloat(val) {
@@ -193,8 +193,8 @@ var floorFrag =
 '  return emission;\n' +
 '}\n' +
 
-'vec4 getIrradiance(float angleIdx, vec2 pos) {\n' +
-'  float angle = PI * (angleIdx / F_ISECT_ANGLES);\n' +
+'vec4 getIrradiance(float angleIdx, vec2 pos, float randomAngleOffset) {\n' +
+'  float angle = PI * (angleIdx / F_ISECT_ANGLES) + randomAngleOffset;\n' +
 '  float c = cos(angle);\n' +
 '  float s = sin(angle);\n' +
 '  vec2 sceneOrigin = vec2(-HALF_SCENE_SIZE*c+HALF_SCENE_SIZE*s, -HALF_SCENE_SIZE*s-HALF_SCENE_SIZE*c);\n' +
@@ -227,10 +227,18 @@ var floorFrag =
 // '  return vec4(color1.rgb, 0.5);\n' +
 '}\n' +
 
+'float random (vec2 st) { \n' +
+'    return fract(sin(dot(st.xy,\n' + 
+'                         vec2(12.9898,78.233)))*\n' +
+'        43758.5453123);\n' +
+'}\n' +
+
 'void main() {\n' +
+'  vec2 st = gl_FragCoord.xy/uResolution.xy;\n' +
 '  vec2 pos = gl_FragCoord.xy - uResolution;\n' +
 '  for (int i = 0; i < ISECT_ANGLES; i++) {\n' +
-'    gl_FragColor += getIrradiance(float(i), pos) / (2. * F_ISECT_ANGLES);\n' +
+'    float randomAngleOffset = random(st) / float(ISECT_ANGLES);\n' +
+'    gl_FragColor += getIrradiance(float(i), pos, randomAngleOffset) / (2. * F_ISECT_ANGLES);\n' +
 '  }\n' +
 '}';
 
