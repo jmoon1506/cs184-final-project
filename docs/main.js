@@ -404,7 +404,7 @@ function newCircleParams() {
   var objectParams = [];
   var radius = document.getElementsByName("radius")[0].value;
   objectParams.push( new CircleParam( { 'position':new THREE.Vector2(0, 0), 'radius':radius, 
-                           'color':"#009966", 'emission':"#ff0000ff", 'emissionRadius':30, 'isStatic':false } ) );
+                           'color':"#009966", 'emission':"#0f0f", 'emissionRadius':30, 'isStatic':false } ) );
   return objectParams;
 }
 
