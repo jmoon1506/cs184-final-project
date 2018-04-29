@@ -6,7 +6,7 @@ var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 256; // rays per angle
 var isectDepth = 8;         // isects per ray
-var isectAngles = 8;
+var isectAngles = 1;
 var isectBufferHeight = isectAngles * isectDepth;
 
 function glslFloat(val) {
@@ -200,7 +200,7 @@ var floorFrag =
 '  vec2 sceneOrigin = vec2(-HALF_SCENE_SIZE*c+HALF_SCENE_SIZE*s, -HALF_SCENE_SIZE*s-HALF_SCENE_SIZE*c);\n' +
 '  vec2 p = pos-sceneOrigin;\n' +
 '  float offset = abs(s*p.x-c*p.y);\n' +
-'  float dist = abs(c*p.x+s*p.y);\n' +
+'  float pixelDist = abs(c*p.x+s*p.y);\n' +
 '  float isectStartIdx = F_ISECT_DEPTH * angleIdx;\n' +
 '  vec2 isect1;\n' +
 '  vec2 isect2;\n' +
@@ -208,8 +208,9 @@ var floorFrag =
 '    float curIdx = float(j);\n' +
 '    vec4 pix = texture2D(isectBuffer, vec2(floor(offset+0.5)/SCENE_SIZE, (isectStartIdx+curIdx)/F_ISECT_BUF_HEIGHT));\n' +
 '    float isectMeshId = F_MAX_MESH_COUNT * pix.x;\n' +
+'    if (isectMeshId < EPS) break;\n' +
 '    float isectDist = SCENE_SIZE * pix.y;\n' +
-'    if (dist < isectDist) {\n' +
+'    if (pixelDist < isectDist) {\n' +
 '      isect2 = vec2(isectMeshId, isectDist);\n' +
 '      if (abs(mod(curIdx, 2.)) > 0.9) return vec4(0.);\n' + // if inside shape, return empty
 '      break;\n' +
@@ -217,12 +218,12 @@ var floorFrag =
 '      isect1 = vec2(isectMeshId, isectDist);\n' +
 '    }\n' +
 '  }\n' +
-'  float d1 = (1.0 + abs(isect1.y - dist)/SCENE_SIZE);\n' + // 1 + d/r
-'  float d2 = (1.0 + abs(isect2.y - dist)/SCENE_SIZE);\n' + // 1 + d/r
+'  float d1 = (1.0 + abs(isect1.y - pixelDist)/SCENE_SIZE);\n' + // 1 + d/r
+'  float d2 = (1.0 + abs(isect2.y - pixelDist)/SCENE_SIZE);\n' + // 1 + d/r
 '  vec4 color1 = getEmission(int(floor(isect1.x+0.5))) / (d1);\n' +
 '  vec4 color2 = getEmission(int(floor(isect2.x+0.5))) / (d2);\n' +
-// '  return vec4(color1.rgb * color1.a + color2.rgb * color2.a, abs(isect1.y - dist));\n' +
-'  return vec4(color1.rgb * color1.a + color2.rgb * color2.a, abs(isect2.y - dist) / SCENE_SIZE);\n' +
+'  return vec4(color1.rgb * color1.a + color2.rgb * color2.a, (color1.a + color2.a) / 2.);\n' +
+// '  return vec4(color1.rgb, 0.5);\n' +
 '}\n' +
 
 'void main() {\n' +
