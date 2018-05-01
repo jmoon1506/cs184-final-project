@@ -6,7 +6,7 @@ var meshArraySize = floatsPerMesh * maxMeshCount;
 var meshArray = new Array(meshArraySize).fill(0);
 var isectBufferWidth = 256; // rays per angle
 var isectDepth = 8;         // isects per ray
-var isectAngles = 24;
+var isectAngles = 12;
 var isectBufferHeight = isectAngles * isectDepth;
 
 function glslFloat(val) {
@@ -169,11 +169,16 @@ var floorFrag =
 '#define ISECT_ANGLES ' + isectAngles + '\n' +
 '#define F_ISECT_ANGLES ' + glslFloat(isectAngles) + '\n' +
 '#define PI 3.14159265359\n' +
+'#define TWO_PI 6.28318530718\n' +
 '#define EPS 0.0001\n' +
 'uniform float uMeshArray[' + meshArraySize + '];\n' +
 'uniform sampler2D isectBuffer;\n' +
 'uniform vec2 uResolution;\n' +
 'varying vec2 v_uv;\n' +
+
+'float random(vec2 st) { \n' +
+'  return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);\n' +
+'}\n' +
 
 'vec4 getEmission(int meshId) {\n' +
 '  vec4 emission;\n' +
@@ -207,11 +212,10 @@ var floorFrag =
 '  vec3 isect2;\n' +
 '  vec4 pix;\n' +
 (function(){
-  var meshString =
+  var isectString =
 '  for (int j = 0; j < 1; j++) {\n';
   for (var i = 0; i < isectDepth; i++) {
-    var idx = i*floatsPerMesh;
-    meshString += 
+    isectString += 
 '    pix = texture2D(isectBuffer, vec2(offsetIdx, (isectStartIdx+'+glslFloat(i)+')/F_ISECT_BUF_HEIGHT));\n' +
 '    float isectMeshId'+i+' = F_MAX_MESH_COUNT * pix.x;\n' +
 '    float isectDist'+i+' = SCENE_SIZE * pix.y;\n' +
@@ -219,10 +223,10 @@ var floorFrag =
 '    isect2 = vec3(isectMeshId'+i+', isectDist'+i+', '+glslFloat(i)+');\n' +
 '    if (isectMeshId'+i+' < EPS || pixelDist < isectDist'+i+') break;\n';
   }
-  meshString += 
+  isectString += 
 '    isect2 = vec3(0.);\n' +
 '  }\n';
-  return meshString;
+  return isectString;
 })() +
 '  float isInside = 1. - abs(mod(isect2.z, 2.));\n' +
 
@@ -250,11 +254,10 @@ var floorFrag =
 '  vec3 isect2;\n' +
 '  vec4 pix;\n' +
 (function(){
-  var meshString =
+  var isectString =
 '  for (int j = 0; j < 1; j++) {\n';
   for (var i = 0; i < isectDepth; i++) {
-    var idx = i*floatsPerMesh;
-    meshString += 
+    isectString += 
 '    pix = texture2D(isectBuffer, vec2(offsetIdx, (isectStartIdx+'+glslFloat(i)+')/F_ISECT_BUF_HEIGHT));\n' +
 '    float isectMeshId'+i+' = F_MAX_MESH_COUNT * pix.x;\n' +
 '    float isectDist'+i+' = SCENE_SIZE * pix.y;\n' +
@@ -262,35 +265,60 @@ var floorFrag =
 '    isect2 = vec3(isectMeshId'+i+', isectDist'+i+', '+glslFloat(i)+');\n' +
 '    if (isectMeshId'+i+' < EPS || pixelDist < isectDist'+i+') break;\n';
   }
-  meshString += 
+  isectString += 
 '    isect2 = vec3(0.);\n' +
 '  }\n';
-  return meshString;
+  return isectString;
 })() +
-'  float isInside = 1. - abs(mod(isect2.z, 2.));\n' +
 
+/*'  vec4 indirect;\n' +
+'  vec2 meshPos;\n' +
+'  vec2 bounceRay;\n' +
+'  float bounceAngle;\n' +
+'  vec2 rayOrigin = sceneOrigin + vec2(-offset*s, offset*c);\n' +
+'  vec2 isect1Pos = rayOrigin + c * (isect1.y+0.1) + s * (isect1.y+0.1);\n' +
+'  vec2 isect2Pos = rayOrigin + c * (isect2.y+0.1) + s * (isect2.y+0.1);\n' +
+
+(function(){
+  var meshString =
+'  for (int j = 0; j < 1; j++) {\n';
+  for (var i = 1; i < maxMeshCount; i++) {
+    var idx = i*floatsPerMesh;
+    meshString += 
+'    meshPos = vec2(uMeshArray['+(idx+2)+'], uMeshArray['+(idx+3)+']);\n' +
+'    bounceRay = meshPos - isect1Pos;\n' +
+'    bounceAngle = atan(bounceRay.y, bounceRay.x);\n' +
+'    indirect += getBounce(bounceAngle < 0. ? bounceAngle : bounceAngle + TWO_PI, isect1Pos);\n';
+  }
+  meshString += 
+'  }\n';
+  return meshString;
+})() +*/
+
+// '  float bounceAngle = random(gl_FragCoord.xy);\n' +
+// '  indirect += getBounce(random(gl_FragCoord.xy+vec2(1.0))*F_ISECT_ANGLES, isect1Pos);\n' +
+// '  indirect += getBounce(((PI/2.)-angle/PI) * F_ISECT_ANGLES, isect1Pos);\n' +
+// '  indirect += getBounce(0.7*F_ISECT_ANGLES, isect1Pos);\n' +
+// '  indirect += getBounce(0.2*F_ISECT_ANGLES, isect1Pos);\n' +
+// '  indirect += getBounce(0.2*F_ISECT_ANGLES, isect2Pos);\n' +
+
+'  float isInside = 1. - abs(mod(isect2.z, 2.));\n' +
 '  vec4 color1 = getEmission(int(floor(isect1.x+0.5)));\n' +
 '  vec4 color2 = getEmission(int(floor(isect2.x+0.5)));\n' +
-'  vec4 indirect;\n' +
-'  vec2 rayOrigin = sceneOrigin + vec2(-offset*s, offset*c);\n' +
-'  vec2 isect1Pos = rayOrigin + c * (isect1.y-0.1) + s * (isect1.y-0.1);\n' +
-'  vec2 isect2Pos = rayOrigin + c * (isect2.y-0.1) + s * (isect2.y-0.1);\n' +
-'  indirect += getBounce(0.1 * F_ISECT_ANGLES, isect1Pos);\n' +
-// '  indirect += getBounce(0.6 * F_ISECT_ANGLES, isect1Pos);\n' +
-'  indirect += getBounce(0.1 * F_ISECT_ANGLES, isect2Pos);\n' +
-// '  indirect += getBounce(0.6 * F_ISECT_ANGLES, isect2Pos);\n' +
-
-
 '  float dist1 = abs(isect1.y - pixelDist);\n' +
 '  float dist2 = abs(isect2.y - pixelDist);\n' +
-'  float d1 = max(0., (1. - 1.0 * dist1 / SCENE_SIZE));\n' +
-'  float d2 = max(0., (1. - 1.0 * dist2 / SCENE_SIZE));\n' +
-'  vec4 color = color1 * (d1*d1) + color2 * (d2*d2);\n' +
-'  return isInside * (color + indirect);\n' +
+'  float d1 = max(0., (1. + 1.0 * dist1 / SCENE_SIZE));\n' +
+'  float d2 = max(0., (1. + 1.0 * dist2 / SCENE_SIZE));\n' +
+'  vec4 color = color1 / (d1*d1) + color2 / (d2*d2);\n' +
+// '  vec4 color = color1 * sqrt(d1) + color2 * sqrt(d2);\n' +
+'  return isInside * color;\n' +
 '}\n' +
 
 'void main() {\n' +
 '  vec2 pos = gl_FragCoord.xy - uResolution;\n' +
+// '  for (int i = 0; i < ISECT_ANGLES; i++) {\n' +
+// '    gl_FragColor += getIrradiance(float(i), pos) / F_ISECT_ANGLES;\n' +
+// '  }\n' +
 '  for (int i = 1; i < ISECT_ANGLES/2; i++) {\n' +
 '    gl_FragColor += getIrradiance(float(i), pos) / F_ISECT_ANGLES;\n' +
 '  }\n' +
