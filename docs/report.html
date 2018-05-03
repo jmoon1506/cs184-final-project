@@ -56,8 +56,10 @@
 <br/>
 
 <div align="left">
-  <div align="middle"><h2>Project Recap</h2></div>
+  <div align="middle"><h1>Abstract</h1></div>
   <p>Real-time global illumination remains an unsolved problem in high-fidelity graphics. Traditional raytracing (i.e. pathtracing) casts rays from the camera into the scene. This becomes prohibitively expensive as the number of ray bounces grows. Dependencies between rays and the high cost of testing intersections also make raytracing difficult to parallelize on a GPU. Photon mapping, which casts rays from light sources, faces the same problem.</p>
+
+  <div align="middle"><h1>Technical Approach</h1></div>
   <p>We propose a raytracing algorithm that utilizes the GPU more effectively by casting rays in parallel bundles. This algorithm calculates all potential intersections in a single render pass. As a result, it can rapidly calculate lighting in the final gather step. By reducing the problem to 2D, it is even possible to run this algorithm in real-time. However, all existing implementations rely on a GPU feature - atomic counters - which has been compromised by the Spectre vulnerability. We are attempting an implementation that does not risk user security, which is necessary to run on a web platform.</p>
 
   <div align="middle">
@@ -141,6 +143,22 @@
   <h3>Physics</h3>
   <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
   <p>
+
+  <div align="middle"><h1>Results</h1></div>
+
+  <div align="middle"><h1>References</h1></div>
+  <ul>
+    <li>J. Hermes, N. Henrich, T. Grosch, and S. Mueller, "Global Illumination using Parallel Global Ray-Bundles," <i>Vision, Modeling, and Visualization</i>, 2010.</li>
+    <li>J. Mortensen, P. Khanna, and M. Slater, "Light Field Propagation and Rendering on the GPU," The Association for Computing Machinery, 2007.</li>
+    <li>T. Hachisuka, "High-Quality Global Illumination Rendering Using Rasterization," in <i>GPU Gems 2</i>, Matt Pharr, Ed., 2005.</li>
+    <li>Y. Tokuyoshi, T. Sekine, and S. Ogaki, "Fast Global Illumination Baking via Ray-Bundles," THe Association for Computing Machinery, 2011.</li>
+    <li>A. Thomsen and K. H. Nielsen, "Approximate Radiosity Using Stochastic Depth Buffering," Journal of Graphics, GPU, and Game Tools, 2011.</li>
+    <li>The blog of Thomas Diewald</li>
+    <li>The blog of Benedikt Bitterli</li>
+  </ul>
+
+  <div align="middle"><h1>Team Contributions</h1></div>
+
 </div>
 
 <br/>
