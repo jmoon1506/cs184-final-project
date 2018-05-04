@@ -134,8 +134,7 @@
     </table>
   </div>
 
-  <h3>Optimizations</h3>
-  <p>Since we offloaded all of our algorithm's calculations to shaders, we needed to carefully optimize them to avoid GPU bottlenecks. This included unrolling loops in Javascript, replacing conditional expressions with binary factors (i.e. multiply output by factors 0 or 1), and emulating jump statements using early-exit single iteration "for" loops. This allowed us to get fast performance in the parallel ray intersection shader, which can run at 60 frames per second even on low-end hardware. However, as our results will demonstrate, the pixel lighting shader proved far more expensive and intractable to these optimizations.</p>
+
 
   <div align="middle"><h2>Additional Features</h2></div>
 
@@ -147,8 +146,23 @@
   <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with Three.js meshes. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
   <p>
   <h3>2D Distance Fields</h3>
-  <p>We initially attempted to calculate intersection points by raymarching across a signed distance field. However, we found that blind raymarching could not find intersections beyond the first, since the distance becomes stuck at zero. Due to the prohibitive cost of conditional branches in shaders, it was not possible to remove those meshes which the ray had already intersected.</p>
-  <p>
+  <p>As mentioned, we initially tried a 2D distance field to capture intersections. While this failed to give us the intersections we wanted, it proved a valuable debugging tool while working on the intersection buffer.</p>
+    <div align="middle">
+    <table style="width=80%">
+      <tr>
+        <td align="middle">
+          <img src="images/distance_field_none.png" align="middle" height="200px"/>
+          <figcaption align="middle"><font size="2">Meshes drawn by Three.js</font></figcaption>
+        </td>
+        <td align="middle">
+          <img src="images/distance_field.png" align="middle" height="200px"/>
+          <figcaption align="middle"><font size="2">Overlaid with distance fields based on those meshes</font></figcaption>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <h3>Optimizations</h3>
+  <p>Since we offloaded all of our algorithm's calculations to shaders, we needed to carefully optimize them to avoid GPU bottlenecks. This included unrolling loops in Javascript, replacing conditional expressions with binary factors (i.e. multiply output by factors 0 or 1), and emulating jump statements using early-exit single iteration "for" loops. This allowed us to get fast performance in the parallel ray intersection shader, which can run at 60 frames per second even on low-end hardware. However, as our results will demonstrate, the pixel lighting shader proved far more expensive and intractable to these optimizations.</p>
 
   <div align="middle"><h1>Results</h1></div>
 
