@@ -61,7 +61,7 @@
 
   <div align="middle"><h1>Technical Approach</h1></div>
   <div align="middle"><h2>Background</h2></div>
-  <p>One of the main problems with Monte Carlo rendering is that similar rays become scattered and incoherent after first colliding with the scene, limiting its ability to parallelize on the GPU. Mortensen, Khanna, and Slater first proposed an atlas-based representation of a scene's light field to achieve global illumination [Mortensen, Khanna, Slater 2007]. After casting parallel rays into the scene from many different angles and storing intersections in a texture atlas, one can calculate irradiance at a location with a fast recursive lookup.</p>
+  <p>One of the main problems with Monte Carlo rendering is that similar rays become scattered and incoherent after first colliding with the scene, limiting its ability to parallelize on the GPU. Mortensen et al. first proposed an atlas-based representation of a scene's light field to achieve global illumination [<a href="#Mortensen">Mortensen et al. 2007</a>]. After casting parallel rays into the scene from many different angles and storing intersections in a texture atlas, one can calculate irradiance at a location with a fast recursive lookup.</p>
 
   <div align="middle">
     <table style="width=100%">
@@ -82,25 +82,26 @@
     </table>
   </div>
 
-   <p>To speed up this technique, Hermes et al. proposed using the GPU's depth-buffer to sort intersections [Hermes et al. 2010]. While this approach could reduce in-production render times for 3D scenes to a matter of hours, a 2D implementation by Thomas Diewald claimed to achieve real-time performance on commodity hardware (unfortunately without any documentation or released software). However, all implementations using the GPU depth-buffer algorithm rely on a feature - atomic counters - which has been compromised by the Spectre vulnerability. While it is still possible to create desktop OpenGL applications using atomic counters, all major web browsers now prohibit atomic WebGL calls. We saw an opportunity to implement parallel ray-bundling without this software vulnerability, by using the atlas-based representation first proposed by Mortensen et al.</p>
+   <p>To speed up this technique, Hermes et al. proposed using the GPU's depth-buffer to sort intersections [<a href="#Hermes">Hermes et al. 2010</a>]. While this approach could reduce in-production render times for 3D scenes to a matter of hours, a 2D implementation by Thomas Diewald claimed to achieve real-time performance on commodity hardware (unfortunately without any documentation or released software) [<a href="#Diewald">Diewald 2017</a>]. However, all implementations using the GPU depth-buffer rely on a feature - atomic counters - which has been compromised by the Spectre vulnerability. While it is still possible to create desktop OpenGL applications using atomic counters, all major web browsers now prohibit atomic WebGL calls. We saw an opportunity to implement parallel ray-bundling in 2D without this software vulnerability, by using the atlas-based representation first proposed by Mortensen et al.</p>
 
   <div align="middle"><h2>Implementation</h2></div>
 
-  <p>We initially attempted to calculate intersection points by raymarching across a signed distance field. However, we found that blind raymarching could not find intersections beyond the first, since the distance becomes stuck at zero. Due to the prohibitive cost of conditional branches in shaders, it was not possible to remove those meshes which the ray had already intersected.</p>
-
-  <p>To reach real-time performance, our algorithm must break down into small, parallel tasks that can be written into shader programs that run on the GPU. However, the GPU must also read in scene objects every frame (since defining objects entirely in the shader would limit interactivity). Therefore we use Three.js meshes as our scene objects and calculate lighting solutions based on their current size and position.
+  <p>To reach real-time performance, our algorithm must break down into small, parallel tasks that can be written into shader programs that run on the GPU. However, the GPU must also read in scene objects every frame (since defining objects entirely in the shader would limit interactivity). Therefore we use Three.js meshes as our scene objects and calculate lighting solutions based on their current size and position. This allowed us to include user interaction and rigidbody physics with minimal overhead. For every frame we: (1) collect mesh data into shader uniforms, (2) calculate parallel ray intersections and encode them into a texture, and (3) use that texture to calculate light at each pixel.</p>
 
   <h3>Collecting Mesh Information</h3>
-  <p>To read mesh information into the shader, we tried recompiling the shader every frame, encoding mesh information as a sampling texture, and passing each mesh into the shader as individual uniforms. These were either too slow or limited by hardware constraints. However, by using a feature newly introduced in WebGL2 - uniform buffer objects - we may be able to send to the GPU thousands of bytes containing uniform data.</p>
+  <p>To read mesh information into the shader, we tried recompiling the shader every frame. This proved too slow for real-time performance We then attempted to encode mesh data into a texture to sample during the intersection step. Though texture sampling worked, we found it was still almost as slow as recompiling every frame.</p>
+  <p>Ultimately, we encoded mesh data into a uniform array. While this was much faster, it ran into strict hardware limitations. Each element of a uniform array counts as a unique uniform, so an array of 120 objects, each with 10 floats, would require 1200 uniforms. This can easily exceed the max uniform count on many video cards, which can be as low as 256 even on new devices. Therefore we had to keep our object counts very conservative, to avoid crashing the program for these devices. We hoped to switch to uniform buffer objects, which enjoy a much higher memory ceiling, but they are not supported on older hardware nor are they available in the WebGL version used by Three.js.</p>
 
   <h3>Calculating Parallel Ray Intersections</h3>
-  <p>The first shader in our render pipeline, the intersection shader outputs a fixed-size texture containing carefully encoded data. We define the x-axis as the index of the parallel offset. This means that horizontally adjacent pixels correspond to adjacent rays, with x=0 being the right-most ray and x=isectWidth being the left-most ray (relative to whichever angle they were cast from). We divided the y-axis into chunks for each angle, with the height of each chunk being the maximum number of intersections each ray can record. The R, G, and B color values of each pixel contain each intersection's meshId and distance along the ray. This lets us quickly determine how far away it is from a point on the same ray and which mesh to lookup for lighting information.</p>
+  <p>The first shader in our render pipeline, the intersection shader outputs a fixed-size texture containing carefully encoded data. We define the x-axis as the index of the parallel offset. This means that horizontally adjacent pixels correspond to adjacent rays, with x=0 being the right-most ray and x=isectWidth being the left-most ray (relative to whichever angle they were cast from). We divided the y-axis into chunks for each angle, with the height of each chunk being the maximum number of intersections each ray can record. The R, G, and B color values of each pixel contain each intersection's meshId, distance along the ray, and whether the ray enters or exits a mesh at the intersection. This lets us quickly determine how far away it is from a point on the same ray and which mesh to lookup for lighting information.</p>
+  <p>We initially attempted to calculate intersection points by raymarching across a signed distance field. However, we found that blind raymarching could not find intersections beyond the first, since the distance becomes stuck at zero. Due to the prohibitive cost of conditional branches in shaders, it was not possible to remove those meshes which the ray had already intersected. Instead, our current implementation iterates through each mesh to find those that intersect the ray. It then sorts those intersections by distance along the ray to fit within the correct depth indices of the output texture.</p>
+
 
   <div align="middle">
     <table style="width=100%" cellpadding="32">
       <tr>
         <td align="middle">
-          <img src="images/isect_buffer.jpg" align="middle" height="200px"/>
+          <img src="images/isect_buffer_info.png" align="middle" height="200px"/>
           <figcaption align="middle"><font size="2">Structure of the intersect buffer</font></figcaption>
         </td>
         <td align="middle">
@@ -113,32 +114,28 @@
 
   <p>Observe that the intersect buffer has a horizontal striped pattern. This is because parallel rays tend to have similar intersection depths until they enter or exit a mesh. Indeed, we see each mesh forms a vertical pattern, because rays from many angles hit them at gradually differing offsets.</p>
 
-  <h3>Calculating Light For Each Bounce (Not Yet Implemented)</h3>
-  <p>Once we have calculated the intersection of those rays with all of the meshes and stored it in our intersect buffer, we are able calculate the radiance for all of the scene and reflect that on the lights and shadows shown on the ground. For each pixel, we iterate through each angle. In each angle, we determine the ray passing through that pixel and find the two closest intersections (if they exist). If either of these intersections corresponds to a light-emitting mesh, we calculate the resulting irradiance at the pixel relative to its distance from the intersection. We add together all the irradiances and divide the sum by the number of angles. This should give us direct lighting.</p>
+  <h3>Calculating Light At Each Pixel</h3>
+  <p>Once we have calculated the intersection of those rays with all of the meshes and stored it in our intersect buffer, we are able calculate the radiance for all of the scene and reflect that on the lights and shadows shown on the ground. For each pixel, we iterate through each angle. In each angle, we determine the ray passing through that pixel and find the two closest intersections (if they exist). If either of these intersections corresponds to a light-emitting mesh, we calculate the resulting irradiance at the pixel relative to its distance from the intersection. We add together all the irradiances and divide the sum by the number of angles. We adjust light emission based on the inverse-square law of light, following the equation \({emission \over (1+r)^2}\), where r is the normalized distance from the pixel to the mesh.</p>
 
-  <p>For indirect lighting, we can use the same algorithm on the intersection points themselves, finding which rays emit onto them. This will probably be a separate render pass, so as to avoid dependency issues between bounces.</p>
+  <p>For indirect lighting, we use the same algorithm on the intersection points themselves, finding the light emitting onto them. However, because of float imprecision, we are not sure whether we are inside or outside the mesh. As a result, indirect light will pass through meshes in addition to bouncing off. Simply setting an offset failed to fix the problem, since we still have no heuristic on whether we are inside or outside the mesh. Nor can we rely on the "enter/exit" data encoded by the intersect buffer, since an intersection could count double or not at all if it was divided based on entrance or exit. Due to time constraints and the difficulty of the problem, we are unfortunately left with inaccurate indirect lighting.</p>
 
-  <br/>
-<!--  <div align="middle">
-      <table style="width=100%">
-        <tr>
-          <td>
-            <img src="images/parallel_rays.jpg" align="middle" width="200px"/>
-          </td>
-        </tr>
-      </table>
-    </div>
-    <br/>
+  <div align="middle">
+    <table style="width=100%" cellpadding="32">
+      <tr>
+        <td align="middle">
+          <img src="images/direct_light.png" align="middle" height="200px"/>
+          <figcaption align="middle"><font size="2">Direct Lighting</font></figcaption>
+        </td>
+        <td align="middle">
+          <img src="images/indirect_light.png" align="middle" height="200px"/>
+          <figcaption align="middle"><font size="2">Indirect Lighting</font></figcaption>
+        </td>
+      </tr>
+    </table>
   </div>
-  <div align="middle"><p><font size="2">For each angle, pixels will gather light from the nearest intersections along the same ray</font></p></div>
- -->
-    
-<!--   <p>
-    Latex examples:<br/>
-    \(ax^2 + bx + c = 0\)
-    <br/>
-    $$x = {-b \pm \sqrt{b^2-4ac} \over 2a}.$$
-  </p> -->
+
+  <h3>Optimizations</h3>
+  <p>Since we offloaded all of our algorithm's calculations to shaders, we needed to carefully optimize them to avoid GPU bottlenecks. This included unrolling loops in Javascript, replacing conditional expressions with binary factors (i.e. multiply output by factors 0 or 1), and emulating jump statements using early-exit single iteration "for" loops. This allowed us to get fast performance in the parallel ray intersection shader, which can run at 60 frames per second even on low-end hardware. However, as our results will demonstrate, the pixel lighting shader proved far more expensive and intractable to these optimizations.</p>
 
   <div align="middle"><h2>Additional Features</h2></div>
 
@@ -147,7 +144,7 @@
   <h3>Drag and Drop</h3>
   <p>We added the ability to drag and drop meshes to allow for interaction with the scene. This feature will help demonstrate the live aspect of our project once we start calculating the light for each bounce.</p>
   <h3>Physics</h3>
-  <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
+  <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with Three.js meshes. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
   <p>
   <h3>2D Distance Fields</h3>
   <p>We initially attempted to calculate intersection points by raymarching across a signed distance field. However, we found that blind raymarching could not find intersections beyond the first, since the distance becomes stuck at zero. Due to the prohibitive cost of conditional branches in shaders, it was not possible to remove those meshes which the ray had already intersected.</p>
@@ -157,12 +154,12 @@
 
   <div align="middle"><h1>References</h1></div>
   <ul>
-    <li>J. Hermes, N. Henrich, T. Grosch, and S. Mueller, "Global Illumination using Parallel Global Ray-Bundles," <i>Vision, Modeling, and Visualization</i>, 2010.</li>
-    <li>J. Mortensen, P. Khanna, and M. Slater, "Light Field Propagation and Rendering on the GPU," The Association for Computing Machinery, 2007.</li>
+    <li><a name="Hermes">J. Hermes, N. Henrich, T. Grosch, and S. Mueller, "Global Illumination using Parallel Global Ray-Bundles," <i>Vision, Modeling, and Visualization</i>, 2010.</a></li>
+    <li><a name="Mortensen">J. Mortensen, P. Khanna, and M. Slater, "Light Field Propagation and Rendering on the GPU," The Association for Computing Machinery, 2007.</a></li>
     <li>T. Hachisuka, "High-Quality Global Illumination Rendering Using Rasterization," in <i>GPU Gems 2</i>, Matt Pharr, Ed., 2005.</li>
     <li>Y. Tokuyoshi, T. Sekine, and S. Ogaki, "Fast Global Illumination Baking via Ray-Bundles," THe Association for Computing Machinery, 2011.</li>
     <li>A. Thomsen and K. H. Nielsen, "Approximate Radiosity Using Stochastic Depth Buffering," Journal of Graphics, GPU, and Game Tools, 2011.</li>
-    <li>The blog of Thomas Diewald</li>
+    <li><a name="Diewald">The blog of Thomas Diewald</a></li>
     <li>The blog of Benedikt Bitterli</li>
   </ul>
 

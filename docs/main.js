@@ -72,7 +72,7 @@ function init() {
   isectBuffer.scene.add(isectBuffer.mesh);
   // scene.add(isectBuffer.mesh);
 
-/*  var isectVizMat = new THREE.ShaderMaterial( {
+  var isectVizMat = new THREE.ShaderMaterial( {
     uniforms: { 
       uMeshArray: { type: "fv1", value: meshArray },
       isectBuffer: { type: "t", value: isectBuffer.target.texture },
@@ -85,7 +85,7 @@ function init() {
   } );
   isectViz = new THREE.Mesh( new THREE.PlaneGeometry( isectBufferWidth, isectBufferHeight ), isectVizMat );
   isectViz.position.set(600, 0, -1);
-  scene.add(isectViz);*/
+  scene.add(isectViz);
 
   // Setup floor
   var floorMat = new THREE.ShaderMaterial( {
@@ -105,7 +105,7 @@ function init() {
   floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   scene.add(floor);
 
-  // addText('Intersect Buffer', 600, -isectBufferHeight/2-32);
+  addText('Intersect Buffer', 600, -isectBufferHeight/2-32);
 
 /*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
