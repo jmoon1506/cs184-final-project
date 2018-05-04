@@ -72,7 +72,7 @@ function init() {
   isectBuffer.scene.add(isectBuffer.mesh);
   // scene.add(isectBuffer.mesh);
 
-/*  var isectVizMat = new THREE.ShaderMaterial( {
+  var isectVizMat = new THREE.ShaderMaterial( {
     uniforms: { 
       uMeshArray: { type: "fv1", value: meshArray },
       isectBuffer: { type: "t", value: isectBuffer.target.texture },
@@ -105,9 +105,9 @@ function init() {
   floor = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), floorMat );
   scene.add(floor);
 
-  addText('Intersect Buffer', 600, -isectBufferHeight/2-32);*/
+  addText('Intersect Buffer', 600, -isectBufferHeight/2-32);
 
-  testMat = new THREE.ShaderMaterial( {
+/*  testMat = new THREE.ShaderMaterial( {
     uniforms: { 
       uMeshArray: { type: "fv1", value: meshArray },
       uResolution: { type: "v2", value: new THREE.Vector2(container.offsetWidth, container.offsetHeight) },
@@ -118,7 +118,7 @@ function init() {
   } );
   testMesh = new THREE.Mesh( new THREE.PlaneGeometry( frustumSize * aspect, frustumSize ), testMat );
   scene.add(testMesh);
-  testMesh.position.set(0, 0, 1);
+  testMesh.position.set(0, 0, 1);*/
 
   Engine.run(engine);
 };
