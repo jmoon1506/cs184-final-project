@@ -57,31 +57,37 @@
 
 <div align="left">
   <div align="middle"><h1>Abstract</h1></div>
-  <p>Real-time global illumination remains an unsolved problem in high-fidelity graphics. Traditional raytracing (i.e. pathtracing) casts rays from the camera into the scene. This becomes prohibitively expensive as the number of ray bounces grows. Dependencies between rays and the high cost of testing intersections also make raytracing difficult to parallelize on a GPU. Photon mapping, which casts rays from light sources, faces the same problem.</p>
+  <p>Real-time global illumination remains an unsolved problem in high-fidelity graphics. Traditional raytracing (i.e. pathtracing) casts rays from the camera into the scene. This becomes prohibitively expensive as the number of ray bounces grows. Dependencies between rays and the high cost of testing intersections also make raytracing difficult to parallelize on a GPU. Photon mapping, which casts rays from light sources, faces the same problem. We attempt to resolve these problems in a 2D web application using shader-based radiosity with parallel ray-bundling. This algorithm can utilize the GPU more effectively by casting rays in parallel bundles. By calculating all potential intersections in a single render pass, we hoped it would be possible to achieve real-time 2D global illumination. However, we eventually discovered that our chosen platform, WebGL, presented intractable technical barriers to indirect lighting and high-fidelity real-time performance. Nevertheless, this project served as a valuable exploration of shader programming.</p>
 
   <div align="middle"><h1>Technical Approach</h1></div>
-  <p>We propose a raytracing algorithm that utilizes the GPU more effectively by casting rays in parallel bundles. This algorithm calculates all potential intersections in a single render pass. As a result, it can rapidly calculate lighting in the final gather step. By reducing the problem to 2D, it is even possible to run this algorithm in real-time. However, all existing implementations rely on a GPU feature - atomic counters - which has been compromised by the Spectre vulnerability. We are attempting an implementation that does not risk user security, which is necessary to run on a web platform.</p>
+  <div align="middle"><h2>Background</h2></div>
+  <p>One of the main problems with Monte Carlo rendering is that similar rays become scattered and incoherent after first colliding with the scene, limiting its ability to parallelize on the GPU. Mortensen, Khanna, and Slater first proposed an atlas-based representation of a scene's light field to achieve global illumination [Mortensen, Khanna, Slater 2007]. After casting parallel rays into the scene from many different angles and storing intersections in a texture atlas, one can calculate irradiance at a location with a fast recursive lookup.</p>
 
   <div align="middle">
     <table style="width=100%">
       <tr>
         <td>
           <img src="images/parallel_ray_bundling.png" align="middle" width="300px"/>
-          <figcaption align="middle">Instead of raycasting randomly from different positions, we use bundles of parallel rays.</figcaption>
+          <figcaption align="middle"><font size="2">Instead of raycasting randomly from different positions, we use bundles of parallel rays.</font></figcaption>
         </td>
         <td>
           <img src="images/parallel_ray_bundling2.png" align="middle" width="300px"/>
-          <figcaption align="middle">Radiance is passed between intersection points.</figcaption>
+          <figcaption align="middle"><font size="2">Radiance is passed between intersection points.</font></figcaption>
         </td>
         <td>
           <img src="images/parallel_ray_bounce.png" align="middle" width="300px"/>
-          <figcaption align="middle">Similar to traditional raytracing, we can calculate bounces recursively.</figcaption>
+          <figcaption align="middle"><font size="2">Similar to traditional raytracing, we calculate bounces recursively.</font></figcaption>
         </td>
       </tr>
     </table>
   </div>
-  <br/>
-  <div align="middle"><h2>Parallel Ray-Bundling</h2></div>
+
+   <p>To speed up this technique, Hermes et al. proposed using the GPU's depth-buffer to sort intersections [Hermes et al. 2010]. While this approach could reduce in-production render times for 3D scenes to a matter of hours, a 2D implementation by Thomas Diewald claimed to achieve real-time performance on commodity hardware (unfortunately without any documentation or released software). However, all implementations using the GPU depth-buffer algorithm rely on a feature - atomic counters - which has been compromised by the Spectre vulnerability. While it is still possible to create desktop OpenGL applications using atomic counters, all major web browsers now prohibit atomic WebGL calls. We saw an opportunity to implement parallel ray-bundling without this software vulnerability, by using the atlas-based representation first proposed by Mortensen et al.</p>
+
+  <div align="middle"><h2>Implementation</h2></div>
+
+  <p>We initially attempted to calculate intersection points by raymarching across a signed distance field. However, we found that blind raymarching could not find intersections beyond the first, since the distance becomes stuck at zero. Due to the prohibitive cost of conditional branches in shaders, it was not possible to remove those meshes which the ray had already intersected.</p>
+
   <p>To reach real-time performance, our algorithm must break down into small, parallel tasks that can be written into shader programs that run on the GPU. However, the GPU must also read in scene objects every frame (since defining objects entirely in the shader would limit interactivity). Therefore we use Three.js meshes as our scene objects and calculate lighting solutions based on their current size and position.
 
   <h3>Collecting Mesh Information</h3>
@@ -142,6 +148,9 @@
   <p>We added the ability to drag and drop meshes to allow for interaction with the scene. This feature will help demonstrate the live aspect of our project once we start calculating the light for each bounce.</p>
   <h3>Physics</h3>
   <p>We used <a href="http://brm.io/matter-js/">Matter.js</a>, which is a 2D physics engine. We integrated this physics engine with THREE.js. This allows us to run a physics world, that we can then rasterize onto the screen. So far, we have implemented two primitive types: rectangles and circles. We initialize our physics world in our init() function, and then at every render cycle we ask the physics engine for the new coordinates and rotation of all the shapes.</p>
+  <p>
+  <h3>2D Distance Fields</h3>
+  <p>We initially attempted to calculate intersection points by raymarching across a signed distance field. However, we found that blind raymarching could not find intersections beyond the first, since the distance becomes stuck at zero. Due to the prohibitive cost of conditional branches in shaders, it was not possible to remove those meshes which the ray had already intersected.</p>
   <p>
 
   <div align="middle"><h1>Results</h1></div>
