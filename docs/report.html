@@ -165,6 +165,11 @@
   <p>Since we offloaded all of our algorithm's calculations to shaders, we needed to carefully optimize them to avoid GPU bottlenecks. This included unrolling loops in Javascript, replacing conditional expressions with binary factors (i.e. multiply output by factors 0 or 1), and emulating jump statements using early-exit single iteration "for" loops. This allowed us to get fast performance in the parallel ray intersection shader, which can run at 60 frames per second even on low-end hardware. However, as our results will demonstrate, the pixel lighting shader proved far more expensive and intractable to these optimizations.</p>
 
   <div align="middle"><h1>Results</h1></div>
+    <h3>Demos</h3>
+  <a href="demos/black/docs/demo.html">Black background, with one light</a><br/>
+  <a href="demos/black_with_gravity/docs/demo.html">Same as last demo + gravity</a><br/>
+  <a href="demos/black_gravity_wall_light/docs/demo.html">Same as last demo + a wall light</a><br/>
+  <a href="demos/white_with_red_lights/docs/demo.html">White background, with red lights</a><br/>
 
   <div align="middle"><h1>References</h1></div>
   <ul>
